@@ -1,0 +1,59 @@
+# =============================================================================
+# RouteIQ — .gitignore
+# =============================================================================
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# ----- Virtual environments -----
+.venv/
+venv/
+env/
+ENV/
+
+# ----- Environment / secrets -----
+.env
+*.local
+
+# ----- Logs -----
+logs/
+*.log
+
+# ----- ML Artifacts (large binary files — use Git LFS or external storage) -----
+ml/patchtst/models/*.pt
+ml/catboost/models/*.cbm
+ml/**/__pycache__/
+*.pkl
+*.joblib
+
+# ----- Node / React -----
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+frontend/build/
+frontend/.cache/
+
+# ----- IDE -----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ----- Testing -----
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ----- MongoDB data (local dev) -----
+mongo-data/
