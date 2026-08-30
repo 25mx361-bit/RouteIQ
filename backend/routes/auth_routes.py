@@ -15,9 +15,9 @@ from backend.controllers.auth_controller import (
     register_user,
     login_user,
     logout_user,
-    get_current_user,
     admin_only_check,
 )
+from backend.controllers.user_controller import get_current_user_profile
 from backend.middleware.auth_middleware import require_auth, require_admin
 
 auth_routes_bp = Blueprint("auth_routes", __name__)
@@ -28,7 +28,7 @@ auth_routes_bp.post("/login")(login_user)
 auth_routes_bp.post("/logout")(logout_user)
 
 # Protected User Route
-auth_routes_bp.get("/me")(require_auth(get_current_user))
+auth_routes_bp.get("/me")(require_auth(get_current_user_profile))
 
 # Protected Admin Route
 auth_routes_bp.get("/admin")(require_admin(admin_only_check))

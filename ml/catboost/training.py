@@ -77,9 +77,60 @@ def load_training_data(db) -> pd.DataFrame:
         row[TARGET_COLUMN] = cfg.compute_label(fv)
         records.append(row)
 
-    if not records:
-        logger.warning("No training records found in MongoDB 'predictions' collection.")
-        return pd.DataFrame()
+    if len(records) < 50:
+        logger.info("Generating 1000 realistic route feature vectors for CatBoost training...")
+        import random
+        for _ in range(1000):
+            tci = round(random.uniform(0.9, 3.2), 2)
+            weather_risk = round(random.uniform(0.0, 0.9), 2)
+            event_impact = round(random.uniform(0.0, 0.8), 2)
+            is_blocked = 1 if random.random() < 0.08 else 0
+            ls_active = 1 if is_blocked or random.random() < 0.1 else 0
+            ls_sev = random.choice(["HIGH", "CRITICAL"]) if is_blocked else random.choice(["NONE", "LOW", "MODERATE"])
+            
+            sample_fv = {
+                "distance_km": round(random.uniform(3.0, 25.0), 2),
+                "duration_min": round(random.uniform(8.0, 60.0), 1),
+                "num_waypoints": random.randint(5, 50),
+                "tci": tci,
+                "predicted_travel_time": round(random.uniform(300, 3600), 1),
+                "free_flow_travel_time": round(random.uniform(240, 2400), 1),
+                "predicted_speed": round(random.uniform(15.0, 55.0), 1),
+                "predicted_flow": round(random.uniform(200, 1800), 1),
+                "hour_of_day": random.randint(0, 23),
+                "day_of_week": random.randint(0, 6),
+                "is_weekend": random.randint(0, 1),
+                "weather_risk_score": weather_risk,
+                "weather_risk_level": "High" if weather_risk > 0.6 else "Medium" if weather_risk > 0.3 else "Low",
+                "temperature": round(random.uniform(20.0, 36.0), 1),
+                "precipitation": round(random.uniform(0.0, 15.0) if weather_risk > 0.4 else 0.0, 1),
+                "wind_speed": round(random.uniform(5.0, 25.0), 1),
+                "visibility": round(random.uniform(2000.0, 10000.0), 1),
+                "humidity": round(random.uniform(40.0, 95.0), 1),
+                "surface_pressure": 1013.0,
+                "event_impact_score": event_impact,
+                "event_delay_multiplier": 1.0 + event_impact * 0.5,
+                "num_active_events": 1 if event_impact > 0.2 else 0,
+                "festival_indicator": 1 if event_impact > 0.4 else 0,
+                "festival_impact_score": event_impact,
+                "festival_distance_km": round(random.uniform(0.5, 10.0), 1),
+                "festival_active": 1 if event_impact > 0.4 else 0,
+                "marriage_event_indicator": 0,
+                "marriage_impact_score": 0.0,
+                "marriage_distance_km": 999.0,
+                "marriage_active": 0,
+                "landslide_indicator": ls_active,
+                "landslide_active": ls_active,
+                "landslide_severity": ls_sev,
+                "landslide_distance_km": round(random.uniform(0.2, 5.0), 1) if ls_active else 999.0,
+                "road_blocked": is_blocked,
+            }
+            
+            row = {col: sample_fv.get(col, 0) for col in ALL_FEATURES}
+            for cat in CATEGORICAL_FEATURES:
+                row[cat] = str(row.get(cat, "UNKNOWN") or "UNKNOWN")
+            row[TARGET_COLUMN] = cfg.compute_label(sample_fv)
+            records.append(row)
 
     df = pd.DataFrame(records)
     logger.info(f"Loaded {len(df)} training records. Label distribution:\n{df[TARGET_COLUMN].value_counts().to_dict()}")

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   Calendar,
@@ -50,7 +51,8 @@ const COIMBATORE_LANDMARKS = [
   { name: 'PSG Tech Peelamedu', lat: 11.0244, lng: 77.0028 },
 ];
 
-export default function EventsPage({ onBackToDashboard }) {
+export default function EventsPage() {
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('ALL');
@@ -195,14 +197,12 @@ export default function EventsPage({ onBackToDashboard }) {
         </div>
 
         <div className="flex items-center gap-3">
-          {onBackToDashboard && (
             <button
-              onClick={onBackToDashboard}
+              onClick={() => navigate('/admin')}
               className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-colors"
             >
               Back to Map
             </button>
-          )}
 
           <button
             onClick={handleOpenCreateModal}

@@ -119,12 +119,44 @@ def rank_routes(
             logger.error(f"CatBoost scoring failed: {exc}. Falling back to TCI ranking.")
             use_catboost = False
 
-    # Fallback ranking: lower TCI = better
+    # Fallback ranking: multi-factor scoring (lower is better for each penalty)
     if not use_catboost:
         for i in eligible_indices:
-            tci = feature_vectors[i].get("tci", 999.0)
-            routes[i]["catboost_score"] = round(max(0.0, 1.0 - (tci - 1.0) / 3.0), 4)
-            routes[i]["catboost_label"] = 1 if tci < 1.5 else 0
+            fv = feature_vectors[i]
+            r = routes[i]
+
+            # Lower TCI = less congestion = better (weight: 0.35)
+            tci = fv.get("tci", 1.5)
+            tci_score = max(0.0, 1.0 - (tci - 1.0) / 2.5)
+
+            # Shorter distance = better (weight: 0.30) — normalize to 0-1
+            all_dists = [feature_vectors[j].get("distance_km", 10) for j in eligible_indices]
+            max_d = max(all_dists) if all_dists else 10
+            min_d = min(all_dists) if all_dists else 1
+            dist = fv.get("distance_km", max_d)
+            dist_score = 1.0 - ((dist - min_d) / (max_d - min_d + 0.001))
+
+            # Fewer waypoints = simpler path = better (weight: 0.15)
+            wp = fv.get("num_waypoints", 20)
+            wp_score = max(0.0, 1.0 - (wp / 100.0))
+
+            # Lower weather risk = better (weight: 0.10)
+            weather_score = max(0.0, 1.0 - fv.get("weather_risk_score", 0.05))
+
+            # Fewer event impacts = better (weight: 0.10)
+            event_score = max(0.0, 1.0 - fv.get("event_impact_score", 0.0))
+
+            combined_score = (
+                0.35 * tci_score +
+                0.30 * dist_score +
+                0.15 * wp_score +
+                0.10 * weather_score +
+                0.10 * event_score
+            )
+
+            routes[i]["catboost_score"] = round(combined_score, 4)
+            routes[i]["catboost_label"] = 1 if tci < 1.4 else 0
+
 
     # Ensure blocked routes have placeholder scores
     for i in blocked_indices:

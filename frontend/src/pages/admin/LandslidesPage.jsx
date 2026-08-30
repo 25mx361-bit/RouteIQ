@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   AlertOctagon,
@@ -53,7 +54,8 @@ const GHAT_PRESETS = [
   },
 ];
 
-export default function LandslidesPage({ onBackToDashboard }) {
+export default function LandslidesPage() {
+  const navigate = useNavigate();
   const [landslides, setLandslides] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -161,14 +163,12 @@ export default function LandslidesPage({ onBackToDashboard }) {
         </div>
 
         <div className="flex items-center gap-3">
-          {onBackToDashboard && (
             <button
-              onClick={onBackToDashboard}
+              onClick={() => navigate('/admin')}
               className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-colors"
             >
               Back to Map
             </button>
-          )}
 
           <button
             onClick={() => setIsModalOpen(true)}

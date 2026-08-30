@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users,
   Database,
@@ -11,7 +12,8 @@ import {
 } from 'lucide-react';
 import { adminApi } from '../../services/api';
 
-export default function AdminDashboard({ onBackToDashboard, onNavigate }) {
+export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,7 +55,7 @@ export default function AdminDashboard({ onBackToDashboard, onNavigate }) {
       <header className="shrink-0 h-16 bg-slate-900/80 backdrop-blur border-b border-slate-800 px-6 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-4">
           <button
-            onClick={onBackToDashboard}
+            onClick={() => navigate('/dashboard')}
             className="p-2 -ml-2 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -79,28 +81,28 @@ export default function AdminDashboard({ onBackToDashboard, onNavigate }) {
             value={stats?.total_users}
             icon={Users}
             colorClass="bg-blue-500/20 text-blue-400"
-            onClick={() => onNavigate('ADMIN_USERS')}
+            onClick={() => navigate('/admin/users')}
           />
           <StatCard
             title="Active Events"
             value={stats?.active_events}
             icon={Calendar}
             colorClass="bg-purple-500/20 text-purple-400"
-            onClick={() => onNavigate('ADMIN_EVENTS')}
+            onClick={() => navigate('/admin/events')}
           />
           <StatCard
             title="Active Landslides"
             value={stats?.active_landslides}
             icon={AlertTriangle}
             colorClass="bg-rose-500/20 text-rose-400"
-            onClick={() => onNavigate('ADMIN_LANDSLIDES')}
+            onClick={() => navigate('/admin/landslides')}
           />
           <StatCard
             title="Routes Today"
             value={stats?.routes_searched_today}
             icon={Database}
             colorClass="bg-emerald-500/20 text-emerald-400"
-            onClick={() => onNavigate('ADMIN_LOGS')}
+            onClick={() => navigate('/admin/logs')}
           />
           <StatCard
             title="Scheduler"
@@ -117,7 +119,7 @@ export default function AdminDashboard({ onBackToDashboard, onNavigate }) {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
-            onClick={() => onNavigate('ADMIN_USERS')}
+            onClick={() => navigate('/admin/users')}
             className="bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-blue-500/50 cursor-pointer group transition-all"
           >
             <Users className="w-8 h-8 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
@@ -126,7 +128,7 @@ export default function AdminDashboard({ onBackToDashboard, onNavigate }) {
           </div>
 
           <div
-            onClick={() => onNavigate('ADMIN_MODELS')}
+            onClick={() => navigate('/admin/models')}
             className="bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-emerald-500/50 cursor-pointer group transition-all"
           >
             <Database className="w-8 h-8 text-emerald-400 mb-4 group-hover:scale-110 transition-transform" />
@@ -135,7 +137,7 @@ export default function AdminDashboard({ onBackToDashboard, onNavigate }) {
           </div>
 
           <div
-            onClick={() => onNavigate('ADMIN_LOGS')}
+            onClick={() => navigate('/admin/logs')}
             className="bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-purple-500/50 cursor-pointer group transition-all"
           >
             <Settings className="w-8 h-8 text-purple-400 mb-4 group-hover:scale-110 transition-transform" />
@@ -144,7 +146,7 @@ export default function AdminDashboard({ onBackToDashboard, onNavigate }) {
           </div>
 
           <div
-            onClick={() => onNavigate('ADMIN_EVENTS')}
+            onClick={() => navigate('/admin/events')}
             className="bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-amber-500/50 cursor-pointer group transition-all"
           >
             <Calendar className="w-8 h-8 text-amber-400 mb-4 group-hover:scale-110 transition-transform" />
@@ -153,7 +155,7 @@ export default function AdminDashboard({ onBackToDashboard, onNavigate }) {
           </div>
 
           <div
-            onClick={() => onNavigate('ADMIN_LANDSLIDES')}
+            onClick={() => navigate('/admin/landslides')}
             className="bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-rose-500/50 cursor-pointer group transition-all"
           >
             <ShieldAlert className="w-8 h-8 text-rose-400 mb-4 group-hover:scale-110 transition-transform" />

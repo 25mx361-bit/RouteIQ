@@ -13,11 +13,13 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor — attach Bearer token if present
+// Request interceptor — attach Bearer token if present and valid
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('routeiq_token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    if (token && token !== 'undefined' && token !== 'null') {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => Promise.reject(error)
@@ -90,4 +92,27 @@ export const adminApi = {
   updateRole: (userId, role) => api.put(`/admin/users/${userId}/role`, { role }),
   deactivateUser: (userId) => api.put(`/admin/users/${userId}/deactivate`),
   logs: (params) => api.get('/admin/logs', { params }),
+};
+
+export const userApi = {
+  stats: () => api.get('/user/stats'),
+  getStats: () => api.get('/user/stats'),
+  history: (params) => api.get('/user/history', { params }),
+  getHistory: (params) => api.get('/user/history', { params }),
+};
+
+export const favoritesApi = {
+  list: () => api.get('/favorites'),
+  getFavorites: () => api.get('/favorites'),
+  add: (data) => api.post('/favorites', data),
+  addFavorite: (data) => api.post('/favorites', data),
+  remove: (id) => api.delete(`/favorites/${id}`),
+  removeFavorite: (id) => api.delete(`/favorites/${id}`),
+};
+
+export const authApi = {
+  me: () => api.get('/auth/me'),
+  getMe: () => api.get('/auth/me'),
+  updateProfile: (data) => api.put('/auth/profile', data),
+  changePassword: (data) => api.post('/auth/change-password', data),
 };

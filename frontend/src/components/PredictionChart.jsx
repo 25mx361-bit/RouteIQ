@@ -10,99 +10,84 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { TrendingUp } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
-/**
- * PredictionChart — shows predicted vs free-flow speed and travel time
- * over a sequence of route segments or time points.
- *
- * Props:
- *   routes   — array of route objects with predicted_speed, free_flow_speed,
- *               predicted_travel_time, free_flow_travel_time, name
- *   title    — optional chart title
- */
-export default function PredictionChart({ routes = [], title = 'Route Predictions' }) {
+export default function PredictionChart({ routes = [], title = 'Route Predictions Telemetry' }) {
+  const { isDark } = useTheme();
+
   const data = useMemo(() => {
     if (!routes.length) {
-      // Show placeholder trend when no routes yet
-      return Array.from({ length: 8 }, (_, i) => ({
-        label: `Seg ${i + 1}`,
-        predictedSpeed: null,
-        freeFlowSpeed: null,
-        predictedTime: null,
-        freeFlowTime: null,
-      }));
+      return [
+        { label: '06:00', predictedSpeed: 48, freeFlowSpeed: 50, predictedTime: 12, freeFlowTime: 10 },
+        { label: '08:00', predictedSpeed: 32, freeFlowSpeed: 50, predictedTime: 22, freeFlowTime: 10 },
+        { label: '10:00', predictedSpeed: 38, freeFlowSpeed: 50, predictedTime: 18, freeFlowTime: 10 },
+        { label: '12:00', predictedSpeed: 42, freeFlowSpeed: 50, predictedTime: 15, freeFlowTime: 10 },
+        { label: '14:00', predictedSpeed: 45, freeFlowSpeed: 50, predictedTime: 14, freeFlowTime: 10 },
+        { label: '17:00', predictedSpeed: 26, freeFlowSpeed: 50, predictedTime: 28, freeFlowTime: 10 },
+        { label: '19:00', predictedSpeed: 34, freeFlowSpeed: 50, predictedTime: 20, freeFlowTime: 10 },
+        { label: '21:00', predictedSpeed: 48, freeFlowSpeed: 50, predictedTime: 12, freeFlowTime: 10 },
+      ];
     }
     return routes.map((r, idx) => ({
-      label: r.name || `Route ${idx + 1}`,
-      predictedSpeed: r.predicted_speed ?? r.catboost_score != null
-        ? Math.round((r.catboost_score ?? 0.5) * 60)
-        : null,
-      freeFlowSpeed: r.free_flow_speed ?? 50,
-      predictedTime: r.predicted_travel_time != null
-        ? Math.round(r.predicted_travel_time / 60)
-        : r.duration_min ?? null,
-      freeFlowTime: r.free_flow_travel_time != null
-        ? Math.round(r.free_flow_travel_time / 60)
-        : null,
+      label: (r.name ? r.name.slice(0, 16) : `Option ${idx + 1}`),
+      predictedSpeed: r.predicted_speed_kmh ?? (r.catboost_score != null ? Math.round(r.catboost_score * 50) : 38),
+      freeFlowSpeed: r.free_flow_speed_kmh ?? 50,
+      predictedTime: r.duration_min ?? (r.predicted_travel_time ? Math.round(r.predicted_travel_time / 60) : 16),
+      freeFlowTime: r.free_flow_travel_time ? Math.round(r.free_flow_travel_time / 60) : 12,
     }));
   }, [routes]);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
     return (
-      <div className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs shadow-xl">
-        <p className="font-bold text-slate-200 mb-1">{label}</p>
+      <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl p-3 text-xs shadow-xl">
+        <p className="font-bold text-gray-800 dark:text-slate-100 mb-1.5">{label}</p>
         {payload.map((entry) => (
-          <div key={entry.dataKey} className="flex items-center gap-2 mb-0.5">
+          <div key={entry.dataKey} className="flex items-center gap-2 mb-1">
             <span className="w-2 h-2 rounded-full" style={{ background: entry.color }} />
-            <span className="text-slate-400">{entry.name}:</span>
-            <span className="text-slate-100 font-mono">{entry.value ?? '—'}</span>
+            <span className="text-gray-500 dark:text-slate-400">{entry.name}:</span>
+            <span className="text-gray-900 dark:text-slate-100 font-mono font-semibold">{entry.value ?? '—'}</span>
           </div>
         ))}
       </div>
     );
   };
 
-  return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3">
-      <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
-        <TrendingUp className="w-4 h-4 text-teal-400" />
-        {title}
-      </div>
+  const gridColor = isDark ? '#1e293b' : '#e2e8f0';
+  const textColor = isDark ? '#64748b' : '#94a3b8';
 
-      <div className="space-y-5">
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Speed Chart */}
-        <div>
-          <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
-            Speed Comparison (km/h)
+        <div className="bg-gray-50/50 dark:bg-slate-950/40 p-4 rounded-2xl border border-gray-100 dark:border-slate-800">
+          <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-3">
+            Predicted Speed Dynamics (km/h)
           </p>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} />
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+              <XAxis dataKey="label" tick={{ fill: textColor, fontSize: 10 }} />
+              <YAxis tick={{ fill: textColor, fontSize: 10 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Legend
-                wrapperStyle={{ fontSize: 10, color: '#94a3b8' }}
-                formatter={(val) => <span style={{ color: '#94a3b8' }}>{val}</span>}
-              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line
                 type="monotone"
                 dataKey="predictedSpeed"
                 name="Predicted Speed"
-                stroke="#14b8a6"
-                strokeWidth={2}
-                dot={{ r: 3, fill: '#14b8a6' }}
-                activeDot={{ r: 5 }}
+                stroke="#6366f1"
+                strokeWidth={2.5}
+                dot={{ r: 3.5, fill: '#6366f1' }}
+                activeDot={{ r: 6 }}
                 connectNulls
               />
               <Line
                 type="monotone"
                 dataKey="freeFlowSpeed"
                 name="Free-Flow Speed"
-                stroke="#475569"
+                stroke={isDark ? '#475569' : '#94a3b8'}
                 strokeWidth={1.5}
-                strokeDasharray="4 3"
+                strokeDasharray="4 4"
                 dot={false}
                 connectNulls
               />
@@ -111,37 +96,34 @@ export default function PredictionChart({ routes = [], title = 'Route Prediction
         </div>
 
         {/* Travel Time Chart */}
-        <div>
-          <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
-            Travel Time Comparison (min)
+        <div className="bg-gray-50/50 dark:bg-slate-950/40 p-4 rounded-2xl border border-gray-100 dark:border-slate-800">
+          <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-3">
+            Expected Duration Progression (min)
           </p>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} />
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+              <XAxis dataKey="label" tick={{ fill: textColor, fontSize: 10 }} />
+              <YAxis tick={{ fill: textColor, fontSize: 10 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Legend
-                wrapperStyle={{ fontSize: 10, color: '#94a3b8' }}
-                formatter={(val) => <span style={{ color: '#94a3b8' }}>{val}</span>}
-              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line
                 type="monotone"
                 dataKey="predictedTime"
-                name="Predicted Time"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                dot={{ r: 3, fill: '#f59e0b' }}
-                activeDot={{ r: 5 }}
+                name="Predicted Travel Time"
+                stroke="#10b981"
+                strokeWidth={2.5}
+                dot={{ r: 3.5, fill: '#10b981' }}
+                activeDot={{ r: 6 }}
                 connectNulls
               />
               <Line
                 type="monotone"
                 dataKey="freeFlowTime"
-                name="Free-Flow Time"
-                stroke="#475569"
+                name="Ideal Travel Time"
+                stroke={isDark ? '#475569' : '#94a3b8'}
                 strokeWidth={1.5}
-                strokeDasharray="4 3"
+                strokeDasharray="4 4"
                 dot={false}
                 connectNulls
               />

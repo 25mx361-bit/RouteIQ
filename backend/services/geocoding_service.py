@@ -16,13 +16,18 @@ from loguru import logger
 # Preset Coimbatore region landmark coordinates for instant fast lookup & offline fallback
 COIMBATORE_PRESETS: Dict[str, Dict[str, Any]] = {
     "gandhipuram": {
-        "latitude": 11.0168,
-        "longitude": 76.9558,
-        "display_name": "Gandhipuram, Coimbatore, Tamil Nadu, India",
+        "latitude": 11.0176,
+        "longitude": 76.9667,
+        "display_name": "Gandhipuram Central, Coimbatore, Tamil Nadu, India",
     },
     "rs puram": {
-        "latitude": 11.0094,
-        "longitude": 76.9458,
+        "latitude": 11.0085,
+        "longitude": 76.9485,
+        "display_name": "R.S. Puram, Coimbatore, Tamil Nadu, India",
+    },
+    "r.s. puram": {
+        "latitude": 11.0085,
+        "longitude": 76.9485,
         "display_name": "R.S. Puram, Coimbatore, Tamil Nadu, India",
     },
     "coimbatore railway station": {

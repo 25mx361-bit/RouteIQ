@@ -190,7 +190,16 @@ def _register_blueprints(app: Flask) -> None:
     API_PREFIX = "/api/v1"
     app.register_blueprint(prediction_bp,  url_prefix=f"{API_PREFIX}/prediction")
 
-    logger.debug("Blueprints registered: auth_routes, geocoding_routes, route_routes, traffic_routes, weather_routes, admin_routes, event_routes, landslide_routes, prediction, notification_routes")
+    # Favorites and User profiles
+    from backend.routes.favorites_routes import favorites_routes_bp
+    app.register_blueprint(favorites_routes_bp, url_prefix="/api/favorites")
+    app.register_blueprint(favorites_routes_bp, url_prefix="/api/v1/favorites", name_prefix="v1_favorites_")
+    
+    from backend.routes.user_routes import user_routes_bp
+    app.register_blueprint(user_routes_bp, url_prefix="/api/user")
+    app.register_blueprint(user_routes_bp, url_prefix="/api/v1/user", name_prefix="v1_user_")
+
+    logger.debug("Blueprints registered: auth_routes, geocoding_routes, route_routes, traffic_routes, weather_routes, admin_routes, event_routes, landslide_routes, prediction, notification_routes, favorites_routes, user_routes")
 
 
 def _register_error_handlers(app: Flask) -> None:

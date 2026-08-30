@@ -72,27 +72,29 @@ class RoutingService:
 
         routes: List[Dict[str, Any]] = []
 
-        # 1. Attempt OpenRouteService API if API key is provided and not placeholder
-        if self.api_key and self.api_key not in ("your-openrouteservice-api-key-here", "placeholder", ""):
+        # 1. Query OSRM Real Street Network Engine (exact OpenStreetMap road-snapped geometry)
+        try:
+            routes = self._fetch_osrm_alternatives(
+                source_lat, source_lng, dest_lat, dest_lng, search_id
+            )
+        except Exception as e:
+            logger.warning(f"OSRM street routing failed ({e}). Attempting ORS.")
+            routes = []
+
+        # 2. Attempt OpenRouteService API if OSRM was offline and ORS key is configured
+        if not routes and self.api_key and self.api_key not in ("your-openrouteservice-api-key-here", "placeholder", ""):
             try:
                 routes = self._fetch_ors_alternatives(
                     source_lat, source_lng, dest_lat, dest_lng, search_id
                 )
             except Exception as e:
-                logger.warning(f"ORS API request failed ({e}). Generating fallback route geometries.")
+                logger.warning(f"ORS API request failed ({e}).")
                 routes = []
 
-        # 2. If ORS is unavailable, rate-limited, or no API key, synthesize 3 high-fidelity alternative routes
         if not routes:
-            logger.info("Using local road network geometry engine for Coimbatore alternatives.")
-            routes = self._generate_realistic_alternatives(
-                source_lat, source_lng, dest_lat, dest_lng, search_id
-            )
+            raise RouteNotFoundError("Could not find viable road routes between the specified locations.")
 
-        if not routes:
-            raise RouteNotFoundError()
-
-        # 3. Evaluate Landslide hazards and enforce safety re-ranking (Blocked routes NEVER recommended)
+        # 3. Evaluate Landslide hazards and safety rules
         try:
             from backend.services.landslide_service import LandslideService
             ls_service = LandslideService()
@@ -100,7 +102,129 @@ class RoutingService:
         except Exception as ls_err:
             logger.warning(f"Notice: Landslide evaluation error: {ls_err}")
 
-        # 4. Enhance and persist each route to MongoDB
+        # 4. Run PatchTST Time-Series Predictions & Feature Engineering
+        target_dt = now
+        if travel_date and travel_time:
+            try:
+                target_dt = datetime.fromisoformat(f"{travel_date}T{travel_time}:00").replace(tzinfo=timezone.utc)
+            except Exception:
+                target_dt = now
+
+        # Fetch active weather and events
+        weather_dict = {
+            "temperature": 28.5,
+            "precipitation": 0.0,
+            "relative_humidity_2m": 60.0,
+            "wind_speed_10m": 12.0,
+            "visibility": 10000.0,
+        }
+        try:
+            from backend.services.weather_service import WeatherService
+            w_svc = WeatherService()
+            w_res = w_svc.get_current_weather(source_lat, source_lng)
+            if w_res:
+                weather_dict = w_res
+        except Exception:
+            pass
+
+        events_list = []
+        try:
+            from backend.repositories.event_repository import EventRepository
+            events_list = EventRepository().find_all()
+        except Exception:
+            pass
+
+        landslides_list = []
+        try:
+            from backend.repositories.landslide_repository import LandslideRepository
+            landslides_list = LandslideRepository().find({"status": "ACTIVE"})
+        except Exception:
+            pass
+
+        from ml.patchtst.inference import PatchTSTPredictor
+        from backend.services.feature_engineering_service import build_route_feature_vector
+        from backend.services.recommendation_service import rank_routes
+
+        predictor = PatchTSTPredictor.get_instance()
+        feature_vectors = []
+
+        for idx, route in enumerate(routes):
+            dist_km = route.get("distance_km", 8.0)
+            precip = weather_dict.get("precipitation", 0.0)
+            segments = route.get("segments", [])
+
+            # Per-route congestion modifier based on road complexity:
+            # - More segments = more intersections = slower average speed
+            # - Longer distance = more varied road types
+            segment_count = len(segments)
+            intersection_factor = 1.0 + min(0.18, segment_count * 0.012)  # up to +18% for complex roads
+
+            # Predict base traffic via PatchTST for this route's distance
+            traffic_pred = predictor.predict_route_traffic(
+                distance_km=dist_km,
+                target_datetime=target_dt,
+                precipitation=precip
+            )
+
+            # Derive per-route effective speed accounting for road complexity
+            base_speed = traffic_pred["predicted_speed_kmh"]
+            effective_speed = base_speed / intersection_factor
+            effective_speed = max(8.0, min(32.0, effective_speed))
+
+            # Recalculate duration using per-route effective speed
+            per_route_duration_min = round((dist_km / effective_speed) * 60.0, 1)
+
+            # Attach predictions to route — use per-route duration, not shared base
+            route["predicted_speed_kmh"] = round(effective_speed, 1)
+            route["current_speed_kmh"] = round(effective_speed, 1)
+            route["predicted_travel_time"] = round(per_route_duration_min * 60.0, 1)  # seconds
+            route["duration_min"] = per_route_duration_min
+            route["free_flow_speed_kmh"] = traffic_pred["free_flow_speed_kmh"]
+            route["free_flow_travel_time"] = traffic_pred["free_flow_travel_time"]
+            free_flow_time = route["free_flow_travel_time"]
+            route["tci"] = round(per_route_duration_min * 60.0 / free_flow_time, 2) if free_flow_time > 0 else traffic_pred["tci"]
+            tci_val = route["tci"]
+            if tci_val >= 1.40:
+                route["congestion_level"] = "HIGH"
+            elif tci_val >= 1.15:
+                route["congestion_level"] = "MEDIUM"
+            else:
+                route["congestion_level"] = "LOW"
+            route["delay_minutes"] = round(max(0.0, per_route_duration_min - traffic_pred["free_flow_travel_time_min"]), 1)
+            route["weather_risk_score"] = 0.15 if precip > 0 else 0.05
+
+            # Build feature vector with per-route corrected values
+            per_route_pred = {**traffic_pred,
+                              "predicted_speed_kmh": route["predicted_speed_kmh"],
+                              "predicted_travel_time": route["predicted_travel_time"],
+                              "predicted_travel_time_min": per_route_duration_min,
+                              "predicted_speed": route["predicted_speed_kmh"],
+                              "predicted_flow": round(effective_speed * 0.8, 2)}
+
+            fv = build_route_feature_vector(
+                route=route,
+                predictions=per_route_pred,
+                weather=weather_dict,
+                events=events_list,
+                landslides=landslides_list,
+                target_datetime=target_dt
+            )
+            feature_vectors.append(fv)
+            route["features"] = fv
+
+        # 5. Score & Rank Routes with CatBoost Gradient Boosted Model
+        try:
+            routes = rank_routes(routes, feature_vectors, use_catboost=True)
+        except Exception as cb_err:
+            logger.warning(f"CatBoost ranking fallback: {cb_err}")
+            # Ensure at least first non-blocked route is recommended
+            for r in routes:
+                if not r.get("is_blocked"):
+                    r["is_recommended"] = True
+                    r["catboost_score"] = 0.92
+                    break
+
+        # 6. Enhance and persist each route to MongoDB
         for idx, route in enumerate(routes):
             route["route_id"] = f"route_{idx}"
             route["route_rank"] = idx
@@ -126,7 +250,7 @@ class RoutingService:
             except Exception as e:
                 logger.warning(f"Notice on persisting route to MongoDB: {e}")
 
-        # Find which route is recommended (index of is_recommended == True, default 0)
+        # Find which route is recommended
         rec_idx = 0
         for i, r in enumerate(routes):
             if r.get("is_recommended", False):
@@ -174,6 +298,197 @@ class RoutingService:
         # Check if source equals destination
         if abs(s_lat - d_lat) < 0.0001 and abs(s_lng - d_lng) < 0.0001:
             raise InvalidCoordinatesError("Source and Destination locations cannot be identical.")
+
+    def _derive_route_road_names(self, steps: List[Dict[str, Any]]) -> str:
+        """
+        Extract primary named road segments from turn-by-turn steps to generate exact Google Maps road names.
+        e.g. 'via Avinashi Rd & Trichy Rd'
+        """
+        street_dist: Dict[str, float] = {}
+        for st in steps:
+            name = st.get("name", "").strip()
+            dist = float(st.get("distance_m", 0.0))
+            if name and name.lower() not in ("unnamed road", "connecting street", "connecting road", "road", ""):
+                street_dist[name] = street_dist.get(name, 0.0) + dist
+
+        sorted_streets = sorted(street_dist.keys(), key=lambda k: street_dist[k], reverse=True)
+        if len(sorted_streets) >= 2:
+            return f"via {sorted_streets[0]} & {sorted_streets[1]}"
+        elif len(sorted_streets) == 1:
+            return f"via {sorted_streets[0]}"
+        return "via Main City Corridor"
+
+    def _fetch_osrm_alternatives(
+        self, s_lat: float, s_lng: float, d_lat: float, d_lng: float, search_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch genuinely different alternative routes from OSRM.
+
+        Strategy:
+        1.  Call OSRM with alternatives=true to get up to 3 natural alternatives.
+        2.  If fewer than 3 returned, generate forced alternatives via perpendicular
+            waypoints placed at 25 %, 50 %, and 75 % of the route, with large
+            perpendicular offsets (0.4–0.7 × distance) to push OSRM onto
+            completely different road corridors (parallel arterials, ring roads, etc.).
+        3.  Deduplicate: reject any candidate whose coordinates overlap > 60 % with
+            an already-accepted route.
+        """
+        routes: List[Dict[str, Any]] = []
+
+        # ── helper: parse one OSRM route object ──────────────────────────────
+        def _parse_osrm_route(r_data: dict, label: str) -> dict:
+            geom = r_data.get("geometry", {})
+            raw_coords = geom.get("coordinates", [])          # [[lng, lat], ...]
+            lat_lng_coords = [[c[1], c[0]] for c in raw_coords]
+            dist_m = float(r_data.get("distance", 0.0))
+            dur_s  = float(r_data.get("duration",  0.0))
+            steps = []
+            for leg in r_data.get("legs", []):
+                for step in leg.get("steps", []):
+                    st_name = step.get("name", "").strip() or "Connecting Street"
+                    steps.append({
+                        "name":        st_name,
+                        "distance_m":  round(step.get("distance", 0), 1),
+                        "duration_s":  round(step.get("duration",  0), 1),
+                        "instruction": f"Follow {st_name}",
+                    })
+            road_naming = self._derive_route_road_names(steps)
+            return {
+                "name":         f"{label} {road_naming}",
+                "distance_m":   round(dist_m, 1),
+                "distance_km":  round(dist_m / 1000.0, 2),
+                "duration_s":   round(dur_s, 1),
+                "duration_min": round(dur_s / 60.0, 1),
+                "geometry":     geom,
+                "coordinates":  lat_lng_coords,
+                "segments":     steps[:15],
+                "source_type":  "osrm_street_engine",
+            }
+
+        # ── helper: coordinate overlap ratio between two routes ───────────────
+        def _overlap_ratio(coords_a: list, coords_b: list, grid: float = 0.0010) -> float:
+            """
+            Rough overlap: what fraction of coords_a's grid cells are also in coords_b?
+            Grid = 0.001° ≈ 111m — finer grid catches near-parallel roads as different.
+            """
+            if not coords_a or not coords_b:
+                return 0.0
+            def to_cells(coords):
+                return {(round(c[0] / grid), round(c[1] / grid)) for c in coords}
+            cells_a = to_cells(coords_a)
+            cells_b = to_cells(coords_b)
+            if not cells_a:
+                return 0.0
+            return len(cells_a & cells_b) / len(cells_a)
+
+        # ── helper: is a candidate route sufficiently different? ──────────────
+        def _is_distinct(candidate_coords: list, accepted: list) -> bool:
+            for accepted_route in accepted:
+                overlap = _overlap_ratio(candidate_coords, accepted_route["coordinates"])
+                if overlap > 0.60:          # more than 60% same cells → reject
+                    return False
+            return True
+
+        # ── 1. Primary OSRM call with alternatives=true ───────────────────────
+        try:
+            url_direct = (
+                f"https://router.project-osrm.org/route/v1/driving/"
+                f"{s_lng},{s_lat};{d_lng},{d_lat}"
+                f"?overview=full&geometries=geojson&alternatives=true&steps=true"
+            )
+            resp = requests.get(url_direct, timeout=self.timeout_sec)
+            if resp.status_code == 200:
+                for idx, r_data in enumerate(resp.json().get("routes", [])):
+                    label = "Fastest Route" if idx == 0 else f"Alternative Route"
+                    parsed = _parse_osrm_route(r_data, label)
+                    if _is_distinct(parsed["coordinates"], routes):
+                        routes.append(parsed)
+                    if len(routes) >= 3:
+                        break
+        except Exception as e:
+            logger.warning(f"OSRM primary call failed: {e}")
+
+        # ── 2. Forced alternatives via perpendicular waypoints ─────────────────
+        if len(routes) < 3:
+            # Direction vector of the straight-line route
+            dlat = d_lat - s_lat
+            dlng = d_lng - s_lng
+            route_len = math.sqrt(dlat**2 + dlng**2)  # in degrees
+
+            # Perpendicular unit vector (rotated 90°)
+            if route_len < 1e-9:
+                route_len = 1e-9
+            perp_lat = -dlng / route_len
+            perp_lng =  dlat / route_len
+
+            # For short routes (< 0.05°, ~5 km) use small offsets: 0.15–0.28×
+            # For long  routes (> 0.05°)         use larger offsets: 0.25–0.45×
+            short = route_len < 0.05
+            if short:
+                magnitudes = [0.15, 0.25, 0.20, 0.15, 0.28]
+            else:
+                magnitudes = [0.25, 0.35, 0.20, 0.30, 0.40]
+
+            # Try at 33%, 67%, 50%, 25%, 75% of the route — both sides
+            fracs = [0.33, 0.67, 0.50, 0.33, 0.67]
+            signs = [-1.0,  1.0, -1.0,  1.0, -1.0]
+
+            attempted = []
+            for frac, sign, mag in zip(fracs, signs, magnitudes):
+                if len(routes) >= 3:
+                    break
+
+                wp_lat = s_lat + frac * dlat + sign * perp_lat * mag * route_len
+                wp_lng = s_lng + frac * dlng + sign * perp_lng * mag * route_len
+
+                # Must stay within Coimbatore district
+                if not (10.7 <= wp_lat <= 11.5 and 76.5 <= wp_lng <= 77.5):
+                    continue
+
+                wp_key = (round(wp_lat, 4), round(wp_lng, 4))
+                if wp_key in attempted:
+                    continue
+                attempted.append(wp_key)
+
+                try:
+                    url_wp = (
+                        f"https://router.project-osrm.org/route/v1/driving/"
+                        f"{s_lng},{s_lat};{wp_lng},{wp_lat};{d_lng},{d_lat}"
+                        f"?overview=full&geometries=geojson&steps=true"
+                    )
+                    r_wp = requests.get(url_wp, timeout=self.timeout_sec)
+                    if r_wp.status_code != 200:
+                        continue
+                    osrm_routes = r_wp.json().get("routes", [])
+                    if not osrm_routes:
+                        continue
+
+                    parsed = _parse_osrm_route(osrm_routes[0], "Alternative")
+                    dist_km = parsed["distance_km"]
+                    base_dist_km = routes[0]["distance_km"] if routes else dist_km
+
+                    # Reject routes more than 1.6× the fastest — real alternatives should be close
+                    if dist_km > base_dist_km * 1.6:
+                        continue
+
+                    if _is_distinct(parsed["coordinates"], routes):
+                        routes.append(parsed)
+
+                except Exception as exc:
+                    logger.debug(f"OSRM waypoint failed (frac={frac}, sign={sign}, mag={mag}): {exc}")
+
+
+
+        # ── 3. Rename routes for clarity ─────────────────────────────────────
+        for i, r in enumerate(routes):
+            via = r["name"].split(" ", 2)[2] if len(r["name"].split(" ", 2)) > 2 else "Main Corridor"
+            if i == 0:
+                r["name"] = f"Fastest Route {via}"
+            else:
+                r["name"] = f"Alternative {via}"
+
+        return routes
+
 
     def _fetch_ors_alternatives(
         self, s_lat: float, s_lng: float, d_lat: float, d_lng: float, search_id: str

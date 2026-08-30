@@ -5,6 +5,15 @@ from backend.controllers.admin_controller import (
     trigger_scheduler_job,
     trigger_catboost_train,
     get_catboost_metrics,
+    trigger_patchtst_train,
+    get_patchtst_metrics,
+    get_traffic_records,
+    create_traffic_record,
+    update_traffic_record,
+    delete_traffic_record,
+    get_all_predictions_list,
+    get_reports_summary,
+    check_api_status,
 )
 from backend.controllers.admin_users_controller import (
     list_users,
@@ -36,3 +45,16 @@ admin_routes_bp.get("/stats")(require_admin(get_admin_stats))
 admin_routes_bp.get("/logs")(require_admin(get_system_logs))
 
 
+
+# -- PatchTST ML --------------------------------------------------------------
+admin_routes_bp.post("/models/patchtst/train")(require_admin(trigger_patchtst_train))
+admin_routes_bp.get("/models/patchtst/metrics")(get_patchtst_metrics)
+
+# -- Phase 17 Admin Endpoints -------------------------------------------------
+admin_routes_bp.get("/traffic")(require_admin(get_traffic_records))
+admin_routes_bp.post("/traffic")(require_admin(create_traffic_record))
+admin_routes_bp.put("/traffic/<record_id>")(require_admin(update_traffic_record))
+admin_routes_bp.delete("/traffic/<record_id>")(require_admin(delete_traffic_record))
+admin_routes_bp.get("/predictions-list")(require_admin(get_all_predictions_list))
+admin_routes_bp.get("/reports/summary")(require_admin(get_reports_summary))
+admin_routes_bp.get("/api-status")(require_admin(check_api_status))

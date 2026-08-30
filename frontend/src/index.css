@@ -2,44 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Base ─────────────────────────────────────────────────────────── */
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
 }
 
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #0f172a;
-}
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+/* ── CSS Custom Properties (semantic tokens) ──────────────────────── */
+:root {
+  --bg-base:       #f8fafc;
+  --bg-surface:    #ffffff;
+  --bg-muted:      #f1f5f9;
+  --border:        #e2e8f0;
+  --text-primary:  #0f172a;
+  --text-secondary:#475569;
+  --text-muted:    #94a3b8;
+  --scrollbar-bg:  #e2e8f0;
+  --scrollbar-thumb: #94a3b8;
 }
 
-/* Leaflet map styles */
+html.dark {
+  --bg-base:       #0f172a;
+  --bg-surface:    #1e293b;
+  --bg-muted:      #162032;
+  --border:        #334155;
+  --text-primary:  #f1f5f9;
+  --text-secondary:#94a3b8;
+  --text-muted:    #64748b;
+  --scrollbar-bg:  #1e293b;
+  --scrollbar-thumb: #475569;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────── */
+::-webkit-scrollbar         { width: 6px; height: 6px; }
+::-webkit-scrollbar-track   { background: var(--scrollbar-bg); }
+::-webkit-scrollbar-thumb   { background: var(--scrollbar-thumb); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+
+/* ── Leaflet map ──────────────────────────────────────────────────── */
 .leaflet-container {
   width: 100%;
   height: 100%;
   z-index: 1;
   background-color: #090d16;
 }
-
 .leaflet-popup-content-wrapper {
-  background-color: #0f172a !important;
+  background-color: #1e293b !important;
   color: #f8fafc !important;
   border-radius: 10px !important;
-  border: 1px solid #1e293b !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5) !important;
 }
+.leaflet-popup-tip { background-color: #1e293b !important; }
 
-.leaflet-popup-tip {
-  background-color: #0f172a !important;
+/* ── Global animation utilities ───────────────────────────────────── */
+.animate-fade-in  { animation: fadeIn  0.3s ease-in-out; }
+.animate-slide-up { animation: slideUp 0.3s ease-out; }
+
+@keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
+@keyframes slideUp { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+
+/* ── Live pulse dot ───────────────────────────────────────────────── */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(1.4); }
+}
+.live-dot { animation: livePulse 1.5s ease-in-out infinite; }
+
+/* ── Toast notification ───────────────────────────────────────────── */
+.toast-enter { animation: slideUp 0.3s ease-out; }
+.toast-exit  { animation: fadeIn  0.2s ease-in reverse; }
+
+/* ── Smooth theme transitions on all UI elements ──────────────────── */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+/* Exclude transitions on animations/transforms so they don't conflict */
+.leaflet-container *, [class*="animate-"] {
+  transition: none !important;
 }

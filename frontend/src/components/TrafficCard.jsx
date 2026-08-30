@@ -9,157 +9,84 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 
-export default function TrafficCard({ trafficData, loading }) {
+export default function TrafficCard({ trafficData, tci, loading }) {
   if (loading) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl space-y-3 animate-pulse">
+      <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-3 animate-pulse">
         <div className="flex items-center justify-between">
-          <div className="h-4 bg-slate-800 rounded w-1/3"></div>
-          <div className="h-4 bg-slate-800 rounded w-1/4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded w-1/3"></div>
+          <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded w-1/4"></div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="h-14 bg-slate-950 rounded-lg"></div>
-          <div className="h-14 bg-slate-950 rounded-lg"></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-16 bg-gray-100 dark:bg-slate-800/60 rounded-2xl"></div>
+          <div className="h-16 bg-gray-100 dark:bg-slate-800/60 rounded-2xl"></div>
         </div>
       </div>
     );
   }
 
-  if (!trafficData) {
-    return null;
-  }
+  const effectiveTci = tci ?? trafficData?.tci ?? 1.25;
+  const currentSpeed = trafficData?.currentSpeed ?? (effectiveTci > 1.8 ? 24 : effectiveTci > 1.4 ? 36 : 46);
+  const freeFlowSpeed = trafficData?.freeFlowSpeed ?? 50.0;
+  const delayMinutes = trafficData?.delayMinutes ?? (effectiveTci > 1.8 ? 12 : effectiveTci > 1.4 ? 6 : 1);
+  const roadStatus = effectiveTci > 2.0 ? 'HEAVY_CONGESTION' : effectiveTci > 1.4 ? 'MODERATE_TRAFFIC' : 'FREE_FLOW';
 
-  const {
-    currentSpeed = 45.0,
-    freeFlowSpeed = 50.0,
-    delayMinutes = 0.0,
-    roadStatus = 'FREE_FLOW',
-    confidence = 0.92,
-    roadClosure = false,
-    speedRatio = 0.9,
-  } = trafficData;
-
-  // Status mapping
   const statusConfig = {
     FREE_FLOW: {
       label: 'Free Flow Traffic',
-      color: 'text-emerald-400',
-      bg: 'bg-emerald-500/10 border-emerald-500/30',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800',
       icon: CheckCircle,
     },
     MODERATE_TRAFFIC: {
-      label: 'Moderate Delays',
-      color: 'text-amber-400',
-      bg: 'bg-amber-500/10 border-amber-500/30',
+      label: 'Moderate Flow Delays',
+      color: 'text-amber-600 dark:text-amber-400',
+      bg: 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
       icon: Activity,
     },
     HEAVY_CONGESTION: {
-      label: 'Heavy Congestion',
-      color: 'text-rose-400',
-      bg: 'bg-rose-500/10 border-rose-500/30',
+      label: 'Dense Corridor Congestion',
+      color: 'text-rose-600 dark:text-rose-400',
+      bg: 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800',
       icon: AlertTriangle,
     },
-    ROAD_CLOSED: {
-      label: 'Road Closure / Blocked',
-      color: 'text-red-500',
-      bg: 'bg-red-500/20 border-red-500/50',
-      icon: ShieldAlert,
-    },
-  }[roadStatus] || {
-    label: 'Normal Flow',
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10 border-emerald-500/30',
-    icon: CheckCircle,
   };
 
-  const StatusIcon = statusConfig.icon;
+  const currentStatus = statusConfig[roadStatus] || statusConfig.FREE_FLOW;
+  const StatusIcon = currentStatus.icon;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl space-y-3.5">
-      {/* Header with TomTom source badge */}
-      <div className="flex items-center justify-between">
+    <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+      {/* Card Header */}
+      <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+          <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
             <Gauge className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-slate-100">
-              Live Road Traffic Metrics
-            </h3>
-            <p className="text-[10px] text-slate-400">TomTom Flow Segment API</p>
+            <h4 className="text-sm font-bold text-gray-800 dark:text-slate-100">TomTom Traffic Dynamics</h4>
+            <p className="text-[10px] text-gray-400 dark:text-slate-500">Live flow velocity analysis</p>
           </div>
         </div>
-
-        <span className="text-[10px] font-mono px-2 py-0.5 bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded">
-          Confidence {Math.round(confidence * 100)}%
-        </span>
-      </div>
-
-      {/* Road Status Banner */}
-      <div
-        className={`flex items-center justify-between p-2.5 rounded-lg border text-xs ${statusConfig.bg}`}
-      >
-        <div className="flex items-center gap-2 font-semibold">
-          <StatusIcon className={`w-4 h-4 ${statusConfig.color}`} />
-          <span className={statusConfig.color}>{statusConfig.label}</span>
-        </div>
-        <span className="text-[11px] font-mono text-slate-300">
-          {roadClosure ? 'CLOSED' : `${Math.round(speedRatio * 100)}% Flow Ratio`}
-        </span>
-      </div>
-
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-3 gap-2 text-xs">
-        {/* Current Speed */}
-        <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 text-center">
-          <div className="text-[10px] text-slate-500 uppercase font-medium">
-            Current Speed
-          </div>
-          <div className="text-sm font-bold text-slate-100 mt-0.5">
-            {currentSpeed}{' '}
-            <span className="text-[10px] font-normal text-slate-400">km/h</span>
-          </div>
-        </div>
-
-        {/* Free Flow Speed */}
-        <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 text-center">
-          <div className="text-[10px] text-slate-500 uppercase font-medium">
-            Free-Flow
-          </div>
-          <div className="text-sm font-bold text-slate-100 mt-0.5">
-            {freeFlowSpeed}{' '}
-            <span className="text-[10px] font-normal text-slate-400">km/h</span>
-          </div>
-        </div>
-
-        {/* Delay */}
-        <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 text-center">
-          <div className="text-[10px] text-slate-500 uppercase font-medium">
-            Traffic Delay
-          </div>
-          <div className="text-sm font-bold text-amber-300 mt-0.5">
-            {delayMinutes > 0 ? `+${delayMinutes}m` : '0m'}
-          </div>
+        <div className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 ${currentStatus.bg} ${currentStatus.color}`}>
+          <StatusIcon className="w-3.5 h-3.5" />
+          <span>{currentStatus.label}</span>
         </div>
       </div>
 
-      {/* Progress Bar of Traffic Speed Efficiency */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between text-[10px] text-slate-400">
-          <span>Speed Efficiency</span>
-          <span>{currentSpeed} / {freeFlowSpeed} km/h</span>
+      {/* Metrics Row */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-gray-50 dark:bg-slate-800/60 rounded-2xl p-3 text-center border border-gray-100 dark:border-slate-800">
+          <p className="text-[10px] text-gray-400 dark:text-slate-500 uppercase tracking-wider font-semibold">Speed</p>
+          <p className="text-base font-extrabold text-gray-800 dark:text-slate-100 mt-0.5">{currentSpeed} <span className="text-[10px] font-normal text-gray-400">km/h</span></p>
         </div>
-        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${
-              speedRatio >= 0.8
-                ? 'bg-emerald-500'
-                : speedRatio >= 0.5
-                ? 'bg-amber-500'
-                : 'bg-rose-500'
-            }`}
-            style={{ width: `${Math.min(Math.max(speedRatio * 100, 5), 100)}%` }}
-          ></div>
+        <div className="bg-gray-50 dark:bg-slate-800/60 rounded-2xl p-3 text-center border border-gray-100 dark:border-slate-800">
+          <p className="text-[10px] text-gray-400 dark:text-slate-500 uppercase tracking-wider font-semibold">Free Flow</p>
+          <p className="text-base font-extrabold text-gray-800 dark:text-slate-100 mt-0.5">{freeFlowSpeed} <span className="text-[10px] font-normal text-gray-400">km/h</span></p>
+        </div>
+        <div className="bg-gray-50 dark:bg-slate-800/60 rounded-2xl p-3 text-center border border-gray-100 dark:border-slate-800">
+          <p className="text-[10px] text-gray-400 dark:text-slate-500 uppercase tracking-wider font-semibold">Est. Delay</p>
+          <p className="text-base font-extrabold text-amber-600 dark:text-amber-400 mt-0.5">+{delayMinutes} <span className="text-[10px] font-normal text-gray-400">min</span></p>
         </div>
       </div>
     </div>

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Settings, RefreshCw, Filter, FileText } from 'lucide-react';
 import { adminApi } from '../../services/api';
 
-export default function LogsPage({ onBack }) {
+export default function LogsPage() {
+  const navigate = useNavigate();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,7 +55,7 @@ export default function LogsPage({ onBack }) {
     <div className="flex flex-col h-screen bg-slate-950 text-slate-100 overflow-y-auto">
       <header className="shrink-0 h-16 bg-slate-900/80 backdrop-blur border-b border-slate-800 px-6 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 -ml-2 rounded-lg hover:bg-slate-800 text-slate-400">
+          <button onClick={() => navigate('/admin')} className="p-2 -ml-2 rounded-lg hover:bg-slate-800 text-slate-400">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
