@@ -1,14 +1,14 @@
 {
-  "trained_at": "2026-08-26T16:33:22.405600+00:00",
+  "trained_at": "2026-09-26T05:54:36.601929+00:00",
   "n_train": 800,
   "n_val": 200,
   "label_distribution_train": {
-    "0": 753,
-    "1": 47
+    "0": 750,
+    "1": 50
   },
   "labelling_rule": "label=1 if TCI<1.5 AND weather_risk_score<0.4 AND road_blocked==0 AND event_impact_score<0.5",
-  "accuracy": 0.995,
-  "f1": 0.9655,
+  "accuracy": 0.955,
+  "f1": 0.5714,
   "auc": 1.0,
   "n_samples": 200
 }

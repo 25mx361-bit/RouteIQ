@@ -198,4 +198,21 @@ def _create_indexes(target_db: Database) -> None:
         name="idx_syslog_ttl",
     )
 
-    logger.info("All 11 MongoDB collection indexes verified.")
+    # 12. forecast_evaluations
+    _safe_create_index(
+        target_db.forecast_evaluations,
+        [("prediction_date", ASCENDING), ("segment_id", ASCENDING)],
+        name="idx_forecast_date_segment",
+    )
+    _safe_create_index(
+        target_db.forecast_evaluations,
+        [("evaluated", ASCENDING), ("prediction_date", DESCENDING)],
+        name="idx_forecast_eval_date",
+    )
+    _safe_create_index(
+        target_db.forecast_evaluations,
+        [("created_at", DESCENDING)],
+        name="idx_forecast_created",
+    )
+
+    logger.info("All 12 MongoDB collection indexes verified.")

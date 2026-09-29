@@ -154,10 +154,8 @@ class RoutingService:
             segments = route.get("segments", [])
 
             # Per-route congestion modifier based on road complexity:
-            # - More segments = more intersections = slower average speed
-            # - Longer distance = more varied road types
             segment_count = len(segments)
-            intersection_factor = 1.0 + min(0.18, segment_count * 0.012)  # up to +18% for complex roads
+            intersection_factor = 1.0 + min(0.10, segment_count * 0.006)  # up to +10% for complex intersections
 
             # Predict base traffic via PatchTST for this route's distance
             traffic_pred = predictor.predict_route_traffic(
@@ -169,16 +167,33 @@ class RoutingService:
             # Derive per-route effective speed accounting for road complexity
             base_speed = traffic_pred["predicted_speed_kmh"]
             effective_speed = base_speed / intersection_factor
-            effective_speed = max(8.0, min(32.0, effective_speed))
+            # Clamp to realistic car driving speeds: min 16 km/h (heavy rush), max 65 km/h
+            effective_speed = max(16.0, min(65.0, effective_speed))
 
             # Recalculate duration using per-route effective speed
             per_route_duration_min = round((dist_km / effective_speed) * 60.0, 1)
+
+            # If route came from OSRM, OSRM provides real turn/street baseline duration
+            osrm_dur_min = route.get("duration_min")
+            if osrm_dur_min and osrm_dur_min > 0:
+                tci_scale = max(1.05, min(2.2, traffic_pred.get("tci", 1.25)))
+                osrm_congestion_duration = round(osrm_dur_min * tci_scale, 1)
+                # Blend with PatchTST predicted speed duration (60% OSRM street graph, 40% speed physics)
+                per_route_duration_min = round(0.6 * osrm_congestion_duration + 0.4 * per_route_duration_min, 1)
+                effective_speed = round((dist_km / per_route_duration_min) * 60.0, 1) if per_route_duration_min > 0 else effective_speed
+
+            # Calculate expected arrival time
+            from datetime import timedelta
+            arrival_dt = target_dt + timedelta(minutes=per_route_duration_min)
+            arrival_time_str = arrival_dt.strftime("%I:%M %p")
 
             # Attach predictions to route — use per-route duration, not shared base
             route["predicted_speed_kmh"] = round(effective_speed, 1)
             route["current_speed_kmh"] = round(effective_speed, 1)
             route["predicted_travel_time"] = round(per_route_duration_min * 60.0, 1)  # seconds
             route["duration_min"] = per_route_duration_min
+            route["arrival_time"] = arrival_time_str
+            route["arrival_datetime"] = arrival_dt.isoformat()
             route["free_flow_speed_kmh"] = traffic_pred["free_flow_speed_kmh"]
             route["free_flow_travel_time"] = traffic_pred["free_flow_travel_time"]
             free_flow_time = route["free_flow_travel_time"]
@@ -273,6 +288,8 @@ class RoutingService:
             "travel_time": travel_time,
             "routes_count": len(routes),
             "recommended_route_index": rec_idx,
+            "arrival_time": routes[rec_idx].get("arrival_time") if routes else None,
+            "duration_min": routes[rec_idx].get("duration_min") if routes else None,
             "has_blocked_routes": any(r.get("is_blocked", False) for r in routes),
             "routes": routes,
         }
@@ -389,16 +406,30 @@ class RoutingService:
                     return False
             return True
 
+        # ── helper: query OSRM with multiple redundant mirrors ───────────────
+        def _get_osrm_json(coords_path: str, params: str) -> Optional[dict]:
+            endpoints = [
+                "https://routing.openstreetmap.de/routed-car/route/v1/driving/",
+                "https://router.project-osrm.org/route/v1/driving/",
+            ]
+            headers = {"User-Agent": "RouteIQ/1.0 (Traffic Analysis System)"}
+            for ep in endpoints:
+                try:
+                    url = f"{ep}{coords_path}?{params}"
+                    resp = requests.get(url, headers=headers, timeout=self.timeout_sec)
+                    if resp.status_code == 200:
+                        return resp.json()
+                except Exception as ex:
+                    logger.debug(f"OSRM endpoint {ep} failed: {ex}")
+            return None
+
         # ── 1. Primary OSRM call with alternatives=true ───────────────────────
         try:
-            url_direct = (
-                f"https://router.project-osrm.org/route/v1/driving/"
-                f"{s_lng},{s_lat};{d_lng},{d_lat}"
-                f"?overview=full&geometries=geojson&alternatives=true&steps=true"
-            )
-            resp = requests.get(url_direct, timeout=self.timeout_sec)
-            if resp.status_code == 200:
-                for idx, r_data in enumerate(resp.json().get("routes", [])):
+            coords_direct = f"{s_lng},{s_lat};{d_lng},{d_lat}"
+            params_direct = "overview=full&geometries=geojson&alternatives=true&steps=true"
+            data_direct = _get_osrm_json(coords_direct, params_direct)
+            if data_direct:
+                for idx, r_data in enumerate(data_direct.get("routes", [])):
                     label = "Fastest Route" if idx == 0 else f"Alternative Route"
                     parsed = _parse_osrm_route(r_data, label)
                     if _is_distinct(parsed["coordinates"], routes):
@@ -410,26 +441,21 @@ class RoutingService:
 
         # ── 2. Forced alternatives via perpendicular waypoints ─────────────────
         if len(routes) < 3:
-            # Direction vector of the straight-line route
             dlat = d_lat - s_lat
             dlng = d_lng - s_lng
-            route_len = math.sqrt(dlat**2 + dlng**2)  # in degrees
+            route_len = math.sqrt(dlat**2 + dlng**2)
 
-            # Perpendicular unit vector (rotated 90°)
             if route_len < 1e-9:
                 route_len = 1e-9
             perp_lat = -dlng / route_len
             perp_lng =  dlat / route_len
 
-            # For short routes (< 0.05°, ~5 km) use small offsets: 0.15–0.28×
-            # For long  routes (> 0.05°)         use larger offsets: 0.25–0.45×
             short = route_len < 0.05
             if short:
                 magnitudes = [0.15, 0.25, 0.20, 0.15, 0.28]
             else:
                 magnitudes = [0.25, 0.35, 0.20, 0.30, 0.40]
 
-            # Try at 33%, 67%, 50%, 25%, 75% of the route — both sides
             fracs = [0.33, 0.67, 0.50, 0.33, 0.67]
             signs = [-1.0,  1.0, -1.0,  1.0, -1.0]
 
@@ -441,7 +467,6 @@ class RoutingService:
                 wp_lat = s_lat + frac * dlat + sign * perp_lat * mag * route_len
                 wp_lng = s_lng + frac * dlng + sign * perp_lng * mag * route_len
 
-                # Must stay within Coimbatore district
                 if not (10.7 <= wp_lat <= 11.5 and 76.5 <= wp_lng <= 77.5):
                     continue
 
@@ -451,15 +476,12 @@ class RoutingService:
                 attempted.append(wp_key)
 
                 try:
-                    url_wp = (
-                        f"https://router.project-osrm.org/route/v1/driving/"
-                        f"{s_lng},{s_lat};{wp_lng},{wp_lat};{d_lng},{d_lat}"
-                        f"?overview=full&geometries=geojson&steps=true"
-                    )
-                    r_wp = requests.get(url_wp, timeout=self.timeout_sec)
-                    if r_wp.status_code != 200:
+                    coords_wp = f"{s_lng},{s_lat};{wp_lng},{wp_lat};{d_lng},{d_lat}"
+                    params_wp = "overview=full&geometries=geojson&steps=true"
+                    data_wp = _get_osrm_json(coords_wp, params_wp)
+                    if not data_wp:
                         continue
-                    osrm_routes = r_wp.json().get("routes", [])
+                    osrm_routes = data_wp.get("routes", [])
                     if not osrm_routes:
                         continue
 
@@ -467,12 +489,14 @@ class RoutingService:
                     dist_km = parsed["distance_km"]
                     base_dist_km = routes[0]["distance_km"] if routes else dist_km
 
-                    # Reject routes more than 1.6× the fastest — real alternatives should be close
                     if dist_km > base_dist_km * 1.6:
                         continue
 
                     if _is_distinct(parsed["coordinates"], routes):
                         routes.append(parsed)
+
+                except Exception as exc:
+                    logger.debug(f"OSRM waypoint failed (frac={frac}, sign={sign}, mag={mag}): {exc}")
 
                 except Exception as exc:
                     logger.debug(f"OSRM waypoint failed (frac={frac}, sign={sign}, mag={mag}): {exc}")

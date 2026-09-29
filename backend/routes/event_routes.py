@@ -17,10 +17,14 @@ from backend.controllers.event_controller import (
     update_event_controller,
     delete_event_controller,
     evaluate_route_impact_controller,
+    get_tamil_calendar_controller,
+    activate_tamil_event_controller,
 )
 
 event_routes_bp = Blueprint("event_routes", __name__)
 
+event_routes_bp.get("/tamil-calendar")(get_tamil_calendar_controller)
+event_routes_bp.post("/tamil-calendar/activate")(activate_tamil_event_controller)
 event_routes_bp.get("")(list_events_controller)
 event_routes_bp.get("/")(list_events_controller)
 event_routes_bp.post("")(create_event_controller)

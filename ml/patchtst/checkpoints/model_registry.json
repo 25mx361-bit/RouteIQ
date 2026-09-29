@@ -1,0 +1,146 @@
+{
+  "versions": [
+    {
+      "version": "PatchTST_v2",
+      "config": {
+        "context_length": 96,
+        "forecast_horizon": 36,
+        "patch_length": 16,
+        "patch_stride": 8,
+        "d_model": 128,
+        "n_heads": 8,
+        "n_encoder_layers": 3,
+        "dropout": 0.1,
+        "num_features": 12,
+        "num_target_features": 2
+      },
+      "train_metrics": {
+        "final_train_loss": 0.936603
+      },
+      "val_metrics": {
+        "mae": 189255.390625,
+        "val_mse": 189255.390625
+      },
+      "test_metrics": {
+        "mae": 16.537622518014675,
+        "rmse": 18.11340662565243,
+        "mape": 69.69725340325996
+      },
+      "checkpoint_path": "E:\\ROUTE_IQ_version1\\ml\\patchtst\\checkpoints\\patchtst_traffic_v2.pth",
+      "train_date_range": {
+        "start": "2026-08-11 00:00:00",
+        "end": "2026-08-31 16:28:55.235000"
+      },
+      "features_used": [
+        "speed_kmh",
+        "free_flow_speed",
+        "current_travel_time",
+        "free_flow_travel_time",
+        "temperature",
+        "precipitation",
+        "humidity",
+        "wind_speed",
+        "hour_sin",
+        "hour_cos",
+        "day_of_week",
+        "is_weekend"
+      ],
+      "registered_at": "2026-09-09T13:06:13.624592"
+    },
+    {
+      "version": "PatchTST_v2",
+      "config": {
+        "context_length": 96,
+        "forecast_horizon": 36,
+        "patch_length": 16,
+        "patch_stride": 8,
+        "d_model": 128,
+        "n_heads": 8,
+        "n_encoder_layers": 3,
+        "dropout": 0.1,
+        "num_features": 12,
+        "num_target_features": 2
+      },
+      "train_metrics": {
+        "final_train_loss": 0.112458
+      },
+      "val_metrics": {
+        "mae": 15.59740930445054,
+        "val_mse": 15.59740930445054
+      },
+      "test_metrics": {
+        "mae": 8.921929629039864,
+        "rmse": 12.232594216555146,
+        "mape": 34.056099802145226
+      },
+      "checkpoint_path": "E:\\ROUTE_IQ_version1\\ml\\patchtst\\checkpoints\\patchtst_traffic_v2.pth",
+      "train_date_range": {
+        "start": "2026-08-11 00:00:00",
+        "end": "2026-09-09 14:35:24.531000"
+      },
+      "features_used": [
+        "speed_kmh",
+        "free_flow_speed",
+        "current_travel_time",
+        "free_flow_travel_time",
+        "temperature",
+        "precipitation",
+        "humidity",
+        "wind_speed",
+        "hour_sin",
+        "hour_cos",
+        "day_of_week",
+        "is_weekend"
+      ],
+      "registered_at": "2026-09-09T14:45:40.934858"
+    },
+    {
+      "version": "PatchTST_v2",
+      "config": {
+        "context_length": 96,
+        "forecast_horizon": 36,
+        "patch_length": 16,
+        "patch_stride": 8,
+        "d_model": 128,
+        "n_heads": 8,
+        "n_encoder_layers": 3,
+        "dropout": 0.1,
+        "num_features": 12,
+        "num_target_features": 2
+      },
+      "train_metrics": {
+        "final_train_loss": 0.13189
+      },
+      "val_metrics": {
+        "mae": 8.174262233164118,
+        "val_mse": 8.174262233164118
+      },
+      "test_metrics": {
+        "mae": 9.249545642358703,
+        "rmse": 12.882764059553116,
+        "mape": 32.33065787880795
+      },
+      "checkpoint_path": "E:\\ROUTE_IQ_version1\\ml\\patchtst\\checkpoints\\patchtst_traffic_v2.pth",
+      "train_date_range": {
+        "start": "2026-08-11 00:00:00",
+        "end": "2026-09-09 15:20:19.280000"
+      },
+      "features_used": [
+        "speed_kmh",
+        "free_flow_speed",
+        "current_travel_time",
+        "free_flow_travel_time",
+        "temperature",
+        "precipitation",
+        "humidity",
+        "wind_speed",
+        "hour_sin",
+        "hour_cos",
+        "day_of_week",
+        "is_weekend"
+      ],
+      "registered_at": "2026-09-19T15:21:06.919567"
+    }
+  ],
+  "active_version": "PatchTST_v2"
+}

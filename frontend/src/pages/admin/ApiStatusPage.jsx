@@ -33,10 +33,10 @@ export default function ApiStatusPage() {
 
   const getStatusColor = (status) => {
     switch(status?.toLowerCase()) {
-      case 'online': return 'text-emerald-600 bg-emerald-50 border-emerald-200';
-      case 'offline': return 'text-red-600 bg-red-50 border-red-200';
-      case 'degraded': return 'text-amber-600 bg-amber-50 border-amber-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+      case 'online': return 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/50';
+      case 'offline': return 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/50';
+      case 'degraded': return 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/50';
+      default: return 'text-gray-600 dark:text-slate-400 bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700';
     }
   };
 
@@ -48,18 +48,21 @@ export default function ApiStatusPage() {
   };
 
   return (
-    <div className="p-6 bg-white min-h-screen text-gray-800">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 text-gray-900 dark:text-slate-100 transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200 dark:border-slate-800">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">API Status</h1>
-          <p className="text-gray-500 text-sm mt-1">External service health checks</p>
+          <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-slate-100 flex items-center gap-2">
+            <Server className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            External API & Engine Status
+          </h1>
+          <p className="text-xs text-gray-500 dark:text-slate-400">External service health checks and latency monitoring</p>
         </div>
         <button
           onClick={fetchStatus}
           disabled={loading}
-          className="flex items-center gap-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 shadow-sm"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-indigo-500' : ''}`} />
           Refresh
         </button>
       </div>
@@ -70,27 +73,27 @@ export default function ApiStatusPage() {
           const colorClass = getStatusColor(api.status);
           
           return (
-            <div key={idx} className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div key={idx} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 shadow-sm transition-colors">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-500">
+                  <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                     <Icon className="w-5 h-5" />
                   </div>
-                  <h3 className="font-semibold text-gray-900">{api.name}</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-slate-100 text-sm">{api.name}</h3>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${colorClass}`}>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colorClass}`}>
                   {api.status}
                 </span>
               </div>
               
-              <div className="space-y-2 mt-4 text-sm">
-                <div className="flex justify-between text-gray-500">
+              <div className="space-y-2 mt-4 text-xs">
+                <div className="flex justify-between text-gray-500 dark:text-slate-400">
                   <span>Response Time:</span>
-                  <span className="font-medium text-gray-900">{api.responseTime || '-'}</span>
+                  <span className="font-medium text-gray-900 dark:text-slate-100 font-mono">{api.responseTime || '-'}</span>
                 </div>
-                <div className="flex justify-between text-gray-500">
+                <div className="flex justify-between text-gray-500 dark:text-slate-400">
                   <span>Last Checked:</span>
-                  <span className="font-medium text-gray-900">{api.lastCheck || '-'}</span>
+                  <span className="font-medium text-gray-900 dark:text-slate-100 font-mono">{api.lastCheck || '-'}</span>
                 </div>
               </div>
             </div>

@@ -24,30 +24,39 @@ export default function ProfilePage() {
     const fetchUser = async () => {
       try {
         const res = await authApi.me();
-        if (res.data?.user) {
+        const u = res.data?.user || res.data;
+        if (u) {
           setProfile({
-            fullName: res.data.user.name || '',
-            email: res.data.user.email || '',
-            phone: res.data.user.phone || '+91 98765 43210'
+            fullName: u.name || '',
+            email: u.email || '',
+            phone: u.phone || ''
           });
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn('Profile fetch notice:', err);
+      }
     };
     fetchUser();
   }, []);
 
   const showToast = (msg, type = 'success') => {
     setToast({ show: true, msg, type });
-    setTimeout(() => setToast({ show: false, msg: '', type: 'success' }), 3000);
+    setTimeout(() => setToast({ show: false, msg: '', type: 'success' }), 3500);
   };
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     try {
-      await authApi.updateProfile({ name: profile.fullName, phone: profile.phone });
-      showToast('Profile updated successfully');
+      const res = await authApi.updateProfile({ name: profile.fullName, phone: profile.phone });
+      showToast(res.data?.message || 'Profile updated successfully');
+      if (res.data?.user) {
+        const curr = getUser();
+        if (curr) {
+          localStorage.setItem('routeiq_user', JSON.stringify({ ...curr, name: res.data.user.name, phone: res.data.user.phone }));
+        }
+      }
     } catch(err) {
-      showToast('Profile details saved locally');
+      showToast(err.response?.data?.message || err.message || 'Failed to update profile', 'error');
     }
   };
 
@@ -57,13 +66,16 @@ export default function ProfilePage() {
       showToast('Passwords do not match', 'error');
       return;
     }
+    if (passwords.newPassword.length < 8) {
+      showToast('New password must be at least 8 characters', 'error');
+      return;
+    }
     try {
-      await authApi.changePassword({ old_password: passwords.oldPassword, new_password: passwords.newPassword });
-      showToast('Password changed successfully');
+      const res = await authApi.changePassword({ old_password: passwords.oldPassword, new_password: passwords.newPassword });
+      showToast(res.data?.message || 'Password changed successfully');
       setPasswords({ oldPassword: '', newPassword: '', confirmPassword: '' });
     } catch(err) {
-      showToast('Password updated');
-      setPasswords({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      showToast(err.response?.data?.message || err.message || 'Failed to update password', 'error');
     }
   };
 

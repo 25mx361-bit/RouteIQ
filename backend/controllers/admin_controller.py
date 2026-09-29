@@ -209,7 +209,11 @@ def get_traffic_records():
         
         query = {}
         if location:
-            query["location"] = {"$regex": location, "$options": "i"}
+            query["$or"] = [
+                {"location": {"$regex": location, "$options": "i"}},
+                {"road_id": {"$regex": location, "$options": "i"}},
+                {"segment_id": {"$regex": location, "$options": "i"}},
+            ]
         
         if date_from or date_to:
             date_query = {}
@@ -303,24 +307,54 @@ def get_all_predictions_list():
         limit = int(request.args.get("limit", 20))
         skip = (page - 1) * limit
         
-        total = db.predictions.count_documents({})
-        cursor = db.predictions.find({}).sort("created_at", -1).skip(skip).limit(limit)
+        congestion_filter = request.args.get("congestion")
+        
+        query = {}
+        if congestion_filter:
+            query["congestion_level"] = {"$regex": f"^{congestion_filter}$", "$options": "i"}
+            
+        total = db.predictions.count_documents(query)
+        cursor = db.predictions.find(query).sort("created_at", -1).skip(skip).limit(limit)
         
         records = []
         for doc in cursor:
+            c_at = doc.get("created_at")
+            ts_str = c_at.strftime("%Y-%m-%d %H:%M") if hasattr(c_at, "strftime") else str(c_at or "")
+            src = doc.get("source_label") or (doc.get("source", {}).get("label") if isinstance(doc.get("source"), dict) else str(doc.get("source") or "Unknown"))
+            dst = doc.get("destination_label") or (doc.get("destination", {}).get("label") if isinstance(doc.get("destination"), dict) else str(doc.get("destination") or "Unknown"))
             records.append({
                 "_id": str(doc["_id"]),
                 "user_id": str(doc.get("user_id", "")),
-                "source_label": doc.get("source_label"),
-                "destination_label": doc.get("destination_label"),
+                "user": doc.get("user_id") or "Public User",
+                "source": src,
+                "destination": dst,
+                "source_label": src,
+                "destination_label": dst,
                 "predicted_tci": doc.get("predicted_tci"),
-                "congestion_level": doc.get("congestion_level"),
-                "created_at": doc.get("created_at"),
-                "model_version": doc.get("model_version")
+                "congestion_level": doc.get("congestion_level") or "LOW",
+                "created_at": c_at,
+                "timestamp": ts_str,
+                "model_version": doc.get("model_version") or "PatchTST_v2"
             })
+            
+        # Compute summary stats
+        all_count = db.predictions.count_documents({})
+        high_count = db.predictions.count_documents({"congestion_level": {"$regex": "high", "$options": "i"}})
+        avg_tci_res = list(db.predictions.aggregate([
+            {"$match": {"predicted_tci": {"$ne": None}}},
+            {"$group": {"_id": None, "avg": {"$avg": "$predicted_tci"}}}
+        ]))
+        avg_tci = avg_tci_res[0]["avg"] if avg_tci_res else 1.05
+        
+        stats = {
+            "total": all_count,
+            "highCongestion": high_count,
+            "avgTci": round(avg_tci, 2)
+        }
             
         return jsonify({
             "predictions": records,
+            "stats": stats,
             "total": total,
             "page": page,
             "pages": math.ceil(total / limit) if limit else 1
@@ -439,4 +473,182 @@ def check_api_status():
         return jsonify(status_data), 200
     except Exception as e:
         logger.error(f"Error in check_api_status: {e}")
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+# ── Forecast Evaluation Endpoints ─────────────────────────────────────────────
+
+def get_forecast_evaluations():
+    """
+    Handle GET /api/admin/forecast-evaluations
+    Returns paginated / filtered list of forecast evaluation records.
+    Query params: page, limit, evaluated, corridor, segment_id, source, destination
+    """
+    from backend.database import get_db
+    import math
+    try:
+        db = get_db()
+        page = int(request.args.get("page", 1))
+        limit = int(request.args.get("limit", 500))
+        skip = (page - 1) * limit
+
+        query = {}
+        evaluated_filter = request.args.get("evaluated")
+        if evaluated_filter == "true":
+            query["evaluated"] = True
+        elif evaluated_filter == "false":
+            query["evaluated"] = False
+
+        corridor = request.args.get("corridor") or request.args.get("name")
+        if corridor and corridor.upper() != "ALL":
+            query["name"] = {"$regex": f"^{corridor}", "$options": "i"}
+
+        segment_id = request.args.get("segment_id")
+        if segment_id and segment_id.upper() != "ALL":
+            query["segment_id"] = segment_id
+
+        source = request.args.get("source")
+        if source and source.upper() != "ALL":
+            query["source"] = {"$regex": source, "$options": "i"}
+
+        destination = request.args.get("destination")
+        if destination and destination.upper() != "ALL":
+            query["destination"] = {"$regex": destination, "$options": "i"}
+
+        total = db.forecast_evaluations.count_documents(query)
+        cursor = db.forecast_evaluations.find(query).sort("prediction_date", -1).skip(skip).limit(limit)
+
+        records = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            for key in ["created_at", "evaluated_at"]:
+                if key in doc and hasattr(doc[key], "isoformat"):
+                    doc[key] = doc[key].isoformat()
+            records.append(doc)
+
+        available_corridors = [
+            {"segment_id": "seg_110168_769558", "name": "Gandhipuram Hub", "source": "Gandhipuram Central", "destination": "Town Hall (Raja St)", "route_label": "Gandhipuram Central ➔ Town Hall (Raja St)"},
+            {"segment_id": "seg_110244_770028", "name": "PSG Tech Peelamedu", "source": "PSG Tech Peelamedu", "destination": "Hopes College (Avinashi Rd)", "route_label": "PSG Tech Peelamedu ➔ Hopes College (Avinashi Rd)"},
+            {"segment_id": "seg_110094_769458", "name": "RS Puram", "source": "RS Puram (DB Road)", "destination": "Saibaba Colony", "route_label": "RS Puram (DB Road) ➔ Saibaba Colony"},
+            {"segment_id": "seg_109892_769613", "name": "Ukkadam", "source": "Ukkadam Bus Stand", "destination": "Town Hall (Oppanakara St)", "route_label": "Ukkadam Bus Stand ➔ Town Hall (Oppanakara St)"},
+            {"segment_id": "seg_110298_770434", "name": "Airport Corridor", "source": "Coimbatore Airport", "destination": "SITRA Junction (NH-544)", "route_label": "Coimbatore Airport ➔ SITRA Junction (NH-544)"},
+            {"segment_id": "seg_110805_769959", "name": "Saravanampatti", "source": "Saravanampatti IT SEZ", "destination": "Ganapathy Bus Stop", "route_label": "Saravanampatti IT SEZ ➔ Ganapathy Bus Stop"},
+            {"segment_id": "seg_109995_770267", "name": "Singanallur", "source": "Singanallur Bus Stand", "destination": "Ramanathapuram (Trichy Rd)", "route_label": "Singanallur Bus Stand ➔ Ramanathapuram (Trichy Rd)"},
+            {"segment_id": "seg_109980_769634", "name": "Coimbatore Junction", "source": "Coimbatore Railway Junction", "destination": "Collectorate & Court", "route_label": "Coimbatore Railway Junction ➔ Collectorate & Court"},
+        ]
+
+        return jsonify({
+            "evaluations": records,
+            "total": total,
+            "page": page,
+            "pages": math.ceil(total / limit) if limit else 1,
+            "available_corridors": available_corridors,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in get_forecast_evaluations: {e}")
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+def run_daily_forecast_check():
+    """
+    Handle POST /api/admin/forecast-evaluations/run-daily-check
+    Runs daily telemetry check, 8AM forecast, and 5PM evaluation for the target date.
+    """
+    from backend.database import get_db
+    try:
+        from scripts.update_daily_telemetry_to_today import generate_telemetry_and_evaluations
+        generate_telemetry_and_evaluations()
+        from ml.patchtst.forecast_evaluator import compute_aggregate_metrics
+        db = get_db()
+        metrics = compute_aggregate_metrics(db)
+        return jsonify({
+            "message": "Daily telemetry synchronized and verified forecasts checked successfully.",
+            "metrics": metrics,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in run_daily_forecast_check: {e}")
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+def get_forecast_metrics():
+    """
+    Handle GET /api/admin/forecast-evaluations/metrics
+    Returns aggregate MAE, RMSE, MAPE, and derived accuracy score.
+    """
+    try:
+        from backend.database import get_db
+        from ml.patchtst.forecast_evaluator import compute_aggregate_metrics
+        db = get_db()
+        metrics = compute_aggregate_metrics(db)
+        return jsonify({"status": "ok", "metrics": metrics}), 200
+    except Exception as e:
+        logger.error(f"Error in get_forecast_metrics: {e}")
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+def trigger_am_prediction():
+    """
+    Handle POST /api/admin/forecast-evaluations/run-8am
+    Manually trigger 8AM prediction generation.
+    """
+    import threading
+    from backend.database import get_db
+    from ml.patchtst.forecast_evaluator import generate_8am_prediction
+    try:
+        body = request.get_json(silent=True) or {}
+        target_date = body.get("target_date")  # Optional: YYYY-MM-DD
+
+        db = get_db()
+        results = generate_8am_prediction(db, target_date=target_date)
+        stored = len([r for r in results if r.get("stored", False)])
+        return jsonify({
+            "message": f"8AM prediction generated: {stored} segments stored.",
+            "segments": len(results),
+            "stored": stored,
+            "target_date": target_date,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in trigger_am_prediction: {e}")
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+def trigger_pm_actuals():
+    """
+    Handle POST /api/admin/forecast-evaluations/collect-5pm
+    Manually trigger 5PM actual traffic collection and evaluation.
+    """
+    from backend.database import get_db
+    from ml.patchtst.forecast_evaluator import collect_5pm_actuals
+    try:
+        body = request.get_json(silent=True) or {}
+        target_date = body.get("target_date")  # Optional: YYYY-MM-DD
+
+        db = get_db()
+        results = collect_5pm_actuals(db, target_date=target_date)
+        evaluated = len([r for r in results if r.get("evaluated", False)])
+        return jsonify({
+            "message": f"5PM actuals collected: {evaluated} predictions evaluated.",
+            "segments_processed": len(results),
+            "evaluated": evaluated,
+            "target_date": target_date,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in trigger_pm_actuals: {e}")
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+def get_forecast_evaluation_table():
+    """
+    Handle GET /api/admin/forecast-evaluations/table
+    Returns the live validation table for dashboard display.
+    """
+    from backend.database import get_db
+    from ml.patchtst.forecast_evaluator import get_evaluation_table
+    try:
+        db = get_db()
+        limit = int(request.args.get("limit", 100))
+        table = get_evaluation_table(db, limit=limit)
+        return jsonify({"status": "ok", "table": table, "count": len(table)}), 200
+    except Exception as e:
+        logger.error(f"Error in get_forecast_evaluation_table: {e}")
         return jsonify({"error": "internal_error", "message": str(e)}), 500

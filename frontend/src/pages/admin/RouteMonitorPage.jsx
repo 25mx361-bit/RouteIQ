@@ -26,60 +26,69 @@ export default function RouteMonitorPage() {
     fetchData();
   }, []);
 
-  const SummaryCard = ({ title, value, icon: Icon, color }) => (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4 shadow-sm">
-      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
-        <Icon className="w-6 h-6" />
+  const SummaryCard = ({ title, value, icon: Icon, color, iconColor }) => (
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 flex items-center gap-4 shadow-sm transition-colors">
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
+        <Icon className={`w-6 h-6 ${iconColor}`} />
       </div>
       <div>
-        <p className="text-gray-500 text-sm font-medium">{title}</p>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
+        <p className="text-gray-500 dark:text-slate-400 text-xs font-medium">{title}</p>
+        <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{value}</p>
       </div>
     </div>
   );
 
   return (
-    <div className="p-6 bg-white min-h-screen text-gray-800">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Route Generation Monitor</h1>
-        <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-          <span className="text-sm font-medium text-gray-600">ORS API Status:</span>
-          <span className="flex items-center gap-1.5 text-emerald-600 text-sm font-bold">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 text-gray-900 dark:text-slate-100 transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200 dark:border-slate-800">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-slate-100 flex items-center gap-2">
+            <Map className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            Route Generation Monitor
+          </h1>
+          <p className="text-xs text-gray-500 dark:text-slate-400">Live ORS routing engine telemetry and search queries</p>
+        </div>
+        <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm text-xs">
+          <span className="font-medium text-gray-600 dark:text-slate-400">ORS API Status:</span>
+          <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             Online
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <SummaryCard
           title="Total Routes Generated"
           value={stats?.total_routes_generated || 0}
           icon={Map}
-          color="bg-indigo-100 text-indigo-600"
+          color="bg-indigo-50 dark:bg-indigo-950/50"
+          iconColor="text-indigo-600 dark:text-indigo-400"
         />
         <SummaryCard
           title="API Success Rate"
           value={`${stats?.api_success_rate || 99.8}%`}
           icon={CheckCircle}
-          color="bg-emerald-100 text-emerald-600"
+          color="bg-emerald-50 dark:bg-emerald-950/50"
+          iconColor="text-emerald-600 dark:text-emerald-400"
         />
         <SummaryCard
           title="Avg Routes per Search"
           value={stats?.avg_routes_per_search || '2.8'}
           icon={BarChart2}
-          color="bg-blue-100 text-blue-600"
+          color="bg-blue-50 dark:bg-blue-950/50"
+          iconColor="text-blue-600 dark:text-blue-400"
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-200 bg-gray-50">
-          <h2 className="font-semibold text-gray-800">Recent Route Searches</h2>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+        <div className="p-4 border-b border-gray-200 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/40">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-slate-200">Recent Route Searches</h2>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-gray-50 dark:bg-slate-800/60 border-b border-gray-200 dark:border-slate-800 text-gray-600 dark:text-slate-400">
               <tr>
                 <th className="px-6 py-3 font-semibold">User</th>
                 <th className="px-6 py-3 font-semibold">Source → Destination</th>
@@ -87,20 +96,20 @@ export default function RouteMonitorPage() {
                 <th className="px-6 py-3 font-semibold">Timestamp</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-800 font-mono">
               {searches.map((search, i) => (
-                <tr key={search._id || i} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">{search.user || 'Anonymous'}</td>
-                  <td className="px-6 py-4 truncate max-w-sm" title={`${search.source} → ${search.destination}`}>
+                <tr key={search._id || i} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                  <td className="px-6 py-3.5 font-medium text-gray-900 dark:text-slate-100">{search.user || 'Anonymous'}</td>
+                  <td className="px-6 py-3.5 text-gray-700 dark:text-slate-300 truncate max-w-sm" title={`${search.source} → ${search.destination}`}>
                     {search.source} → {search.destination}
                   </td>
-                  <td className="px-6 py-4 font-medium">{search.routes_count || 3}</td>
-                  <td className="px-6 py-4 text-gray-500">{search.timestamp}</td>
+                  <td className="px-6 py-3.5 text-indigo-600 dark:text-indigo-400 font-bold">{search.routes_count || 3}</td>
+                  <td className="px-6 py-3.5 text-gray-500 dark:text-slate-400">{search.timestamp}</td>
                 </tr>
               ))}
               {searches.length === 0 && !loading && (
                 <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="4" className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
                     No recent searches available
                   </td>
                 </tr>

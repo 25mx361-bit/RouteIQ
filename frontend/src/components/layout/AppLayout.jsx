@@ -16,6 +16,8 @@ const PAGE_TITLES = {
   '/history':        'Search History',
   '/favorites':      'Favorites',
   '/profile':        'Profile & Settings',
+  '/forecast-validation': 'Forecast & Post-Event Accuracy Validation',
+  '/validation':          'Forecast & Post-Event Accuracy Validation',
 };
 
 export default function AppLayout() {

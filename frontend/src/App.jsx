@@ -37,6 +37,7 @@ import RouteMonitorPage      from './pages/admin/RouteMonitorPage';
 import ApiStatusPage         from './pages/admin/ApiStatusPage';
 import ReportsPage           from './pages/admin/ReportsPage';
 import AdminSettingsPage     from './pages/admin/AdminSettingsPage';
+import ForecastValidationPage from './pages/admin/ForecastValidationPage';
 
 export default function App() {
   return (
@@ -54,6 +55,9 @@ export default function App() {
             <Route path="/predictions"    element={<PredictionsPage />} />
             <Route path="/recommendations" element={<RecommendationsPage />} />
             <Route path="/map"            element={<RouteMapPage />} />
+            <Route path="/forecast-validation" element={<ForecastValidationPage />} />
+            <Route path="/model-validation"    element={<ForecastValidationPage />} />
+            <Route path="/validation"          element={<ForecastValidationPage />} />
 
             {/* Protected Member-Specific Features */}
             <Route
@@ -90,18 +94,20 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/admin"                element={<AdminDashboard />} />
-            <Route path="/admin/users"          element={<UsersPage />} />
-            <Route path="/admin/traffic"        element={<TrafficDataPage />} />
-            <Route path="/admin/models"         element={<ModelsPage />} />
-            <Route path="/admin/predictions"    element={<PredictionMonitorPage />} />
-            <Route path="/admin/routes"         element={<RouteMonitorPage />} />
-            <Route path="/admin/api-status"     element={<ApiStatusPage />} />
-            <Route path="/admin/events"         element={<EventsPage />} />
-            <Route path="/admin/landslides"     element={<LandslidesPage />} />
-            <Route path="/admin/reports"        element={<ReportsPage />} />
-            <Route path="/admin/logs"           element={<LogsPage />} />
-            <Route path="/admin/settings"       element={<AdminSettingsPage />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/events" element={<EventsPage />} />
+            <Route path="/admin/landslides" element={<LandslidesPage />} />
+            <Route path="/admin/reports" element={<ReportsPage />} />
+            {/* Redirect legacy removed admin sections directly to /admin */}
+            <Route path="/admin/traffic" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin/models" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin/predictions" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin/routes" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin/api-status" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin/logs" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin/settings" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin/forecast-validation" element={<ForecastValidationPage />} />
           </Route>
 
           {/* Fallback */}

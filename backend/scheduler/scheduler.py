@@ -22,6 +22,8 @@ from backend.scheduler.jobs import (
     notification_check,
     JOB_TELEMETRY,
 )
+from backend.scheduler.jobs import am_prediction_job, pm_actuals_job
+
 
 # Global BackgroundScheduler instance
 scheduler: Optional[BackgroundScheduler] = None
@@ -77,6 +79,27 @@ def init_scheduler(app=None) -> BackgroundScheduler:
         name="Hazard Alert & Notification Scanner (5m)",
         replace_existing=True,
         max_instances=1,
+    )
+
+    # 8AM Prediction job — daily at 02:30 UTC (08:00 IST)
+    scheduler.add_job(
+        func=am_prediction_job,
+        trigger="cron",
+        hour=2,
+        minute=30,
+        id="am_prediction_job",
+        name="8AM PatchTST Prediction",
+        replace_existing=True,
+    )
+    # 5PM Actuals collection job — daily at 11:30 UTC (17:00 IST)
+    scheduler.add_job(
+        func=pm_actuals_job,
+        trigger="cron",
+        hour=11,
+        minute=30,
+        id="pm_actuals_job",
+        name="5PM Traffic Actuals Collection",
+        replace_existing=True,
     )
 
     _is_initialized = True

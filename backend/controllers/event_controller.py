@@ -7,8 +7,80 @@ from datetime import datetime
 from flask import request, jsonify, g
 from loguru import logger
 from backend.services.event_service import EventService
+from backend.data.tamil_calendar_data import (
+    TAMIL_MONTHS,
+    get_all_tamil_calendar_events,
+)
 
 event_service = EventService()
+
+
+def get_tamil_calendar_controller():
+    """
+    Handle GET /api/events/tamil-calendar
+    Query params: category, month
+    """
+    category = request.args.get("category", "ALL").strip()
+    month = request.args.get("month", "ALL").strip()
+    try:
+        events = get_all_tamil_calendar_events(category=category, month=month)
+        return jsonify({
+            "months": TAMIL_MONTHS,
+            "count": len(events),
+            "events": events,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error fetching Tamil calendar: {e}")
+        return jsonify({"error": "internal_error", "message": "Failed to fetch Tamil calendar."}), 500
+
+
+def activate_tamil_event_controller():
+    """
+    Handle POST /api/events/tamil-calendar/activate
+    Instantiates an authentic Tamil calendar occasion as a live traffic event.
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        tamil_id = body.get("id") or body.get("tamil_event_id")
+        event_payload = {}
+        if tamil_id:
+            catalog = get_all_tamil_calendar_events()
+            matched = next((item for item in catalog if item.get("id") == tamil_id), None)
+            if matched:
+                event_payload.update(matched)
+
+        event_payload.update(body)
+
+        # Default start and end times if not explicitly provided
+        event_date = event_payload.get("date")
+        if event_date and not event_payload.get("start_time"):
+            event_payload["start_time"] = f"{event_date}T06:00:00"
+            event_payload["end_time"] = f"{event_date}T22:00:00"
+
+        event_payload["is_tamil_calendar"] = True
+
+        # Map category to system event type
+        etype = event_payload.get("event_type") or event_payload.get("category")
+        if etype == "TEMPLE_OCCASION":
+            etype = "PUBLIC_EVENT"
+        elif etype == "MARRIAGE":
+            etype = "MARRIAGE"
+        elif etype == "FESTIVAL":
+            etype = "FESTIVAL"
+        else:
+            etype = etype or "OTHER"
+        event_payload["event_type"] = etype
+
+        created = event_service.create_event(event_payload)
+        return jsonify({
+            "message": f"Tamil Occasion '{event_payload.get('title')}' activated as live traffic event.",
+            "event": created,
+        }), 201
+    except ValueError as ve:
+        return jsonify({"error": "validation_error", "message": str(ve)}), 422
+    except Exception as e:
+        logger.error(f"Error activating Tamil calendar event: {e}")
+        return jsonify({"error": "internal_error", "message": "Failed to activate Tamil calendar event."}), 500
 
 
 def list_events_controller():

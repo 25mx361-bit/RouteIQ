@@ -268,6 +268,13 @@ class EventService:
             "end_time": data.get("end_time"),
             "status": "ACTIVE",
             "is_active": True,
+            "tamil_title": data.get("tamil_title"),
+            "tamil_month": data.get("tamil_month"),
+            "affected_corridors": data.get("affected_corridors", []),
+            "nakshatram": data.get("nakshatram"),
+            "tithi": data.get("tithi"),
+            "muhurtham_time": data.get("muhurtham_time"),
+            "is_tamil_calendar": bool(data.get("is_tamil_calendar", False)),
         }
 
         # Parse date strings if passed

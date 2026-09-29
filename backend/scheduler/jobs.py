@@ -81,6 +81,26 @@ JOB_TELEMETRY: Dict[str, Dict[str, Any]] = {
         "last_status": "PENDING",
         "last_error": None,
     },
+    "am_prediction_job": {
+        "job_id": "am_prediction_job",
+        "description": "8AM PatchTST Future Traffic Prediction Generator",
+        "interval": "daily at 08:00 IST",
+        "last_run_time": None,
+        "last_duration_ms": 0,
+        "last_records_collected": 0,
+        "last_status": "PENDING",
+        "last_error": None,
+    },
+    "pm_actuals_job": {
+        "job_id": "pm_actuals_job",
+        "description": "5PM Actual Traffic Collection & Prediction Evaluation",
+        "interval": "daily at 17:00 IST",
+        "last_run_time": None,
+        "last_duration_ms": 0,
+        "last_records_collected": 0,
+        "last_status": "PENDING",
+        "last_error": None,
+    },
 }
 
 
@@ -317,3 +337,93 @@ def notification_check() -> Dict[str, Any]:
         logger.error(f"Error in scheduled job {job_id}: {e}")
         _record_job_log(job_id, start_t, 0, "ERROR", str(e))
         return {"status": "ERROR", "error": str(e)}
+
+
+def am_prediction_job() -> Dict[str, Any]:
+    """
+    Job 5: Daily 8AM — Generate PatchTST predictions for 5PM target time.
+    Stores predictions in forecast_evaluations collection.
+    Only runs if PatchTST model is trained (checkpoint exists).
+    """
+    job_id = "am_prediction_job"
+    start_t = time.time()
+    logger.info(f"Starting scheduled job: {job_id}")
+
+    try:
+        from ml.patchtst.forecast_evaluator import generate_8am_prediction
+        from ml.patchtst.config import PatchTSTConfig
+
+        cfg = PatchTSTConfig()
+        if not cfg.model_path.exists() and not cfg.legacy_model_path.exists():
+            logger.warning("8AM prediction job skipped: no trained PatchTST model found.")
+            _record_job_log(job_id, start_t, 0, "SKIPPED", "No trained model checkpoint found.")
+            return {"status": "SKIPPED", "message": "No trained model found"}
+
+        db = get_db()
+        from datetime import date
+        today_str = date.today().isoformat()
+        results = generate_8am_prediction(db, target_date=today_str)
+        records_stored = len([r for r in results if r.get("stored", False)])
+
+        _record_job_log(
+            job_id=job_id,
+            start_time=start_t,
+            records_count=records_stored,
+            status="SUCCESS",
+            extra_details={"target_date": today_str, "segments_predicted": len(results)},
+        )
+        logger.info(f"8AM prediction job: {records_stored} predictions stored for {today_str}.")
+        return {"status": "SUCCESS", "records_stored": records_stored, "target_date": today_str}
+
+    except Exception as e:
+        logger.error(f"Fatal error in {job_id}: {e}")
+        _record_job_log(job_id, start_t, 0, "ERROR", str(e))
+        return {"status": "ERROR", "error": str(e)}
+
+
+def pm_actuals_job() -> Dict[str, Any]:
+    """
+    Job 6: Daily 5PM — Collect actual live TomTom traffic and evaluate 8AM predictions.
+    Matches actual observations to stored forecast_evaluations records.
+    Calculates and stores absolute error and percentage error.
+    """
+    job_id = "pm_actuals_job"
+    start_t = time.time()
+    logger.info(f"Starting scheduled job: {job_id}")
+
+    try:
+        from ml.patchtst.forecast_evaluator import collect_5pm_actuals
+        from datetime import date
+
+        db = get_db()
+        today_str = date.today().isoformat()
+
+        # First collect fresh TomTom data for all monitored hubs
+        traffic_service = TrafficService(traffic_repo=TrafficRepository(db))
+        for hub in COIMBATORE_MONITORED_HUBS:
+            try:
+                traffic_service.get_flow_at_point(
+                    lat=hub["lat"], lng=hub["lng"], zoom=10, persist=True
+                )
+            except Exception as hub_err:
+                logger.warning(f"Error collecting 5PM traffic for {hub['name']}: {hub_err}")
+
+        # Now match actuals to predictions
+        results = collect_5pm_actuals(db, target_date=today_str)
+        evaluated_count = len([r for r in results if r.get("evaluated", False)])
+
+        _record_job_log(
+            job_id=job_id,
+            start_time=start_t,
+            records_count=evaluated_count,
+            status="SUCCESS",
+            extra_details={"target_date": today_str, "segments_evaluated": evaluated_count},
+        )
+        logger.info(f"5PM actuals job: {evaluated_count} predictions evaluated for {today_str}.")
+        return {"status": "SUCCESS", "records_evaluated": evaluated_count, "target_date": today_str}
+
+    except Exception as e:
+        logger.error(f"Fatal error in {job_id}: {e}")
+        _record_job_log(job_id, start_t, 0, "ERROR", str(e))
+        return {"status": "ERROR", "error": str(e)}
+

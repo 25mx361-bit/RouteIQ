@@ -58,3 +58,19 @@ admin_routes_bp.delete("/traffic/<record_id>")(require_admin(delete_traffic_reco
 admin_routes_bp.get("/predictions-list")(require_admin(get_all_predictions_list))
 admin_routes_bp.get("/reports/summary")(require_admin(get_reports_summary))
 admin_routes_bp.get("/api-status")(require_admin(check_api_status))
+
+# ── Forecast Evaluation Endpoints ─────────────────────────────────────────────
+from backend.controllers.admin_controller import (
+    get_forecast_evaluations,
+    get_forecast_metrics,
+    trigger_am_prediction,
+    trigger_pm_actuals,
+    get_forecast_evaluation_table,
+    run_daily_forecast_check,
+)
+admin_routes_bp.get("/forecast-evaluations")(get_forecast_evaluations)
+admin_routes_bp.get("/forecast-evaluations/metrics")(get_forecast_metrics)  # public for dashboard
+admin_routes_bp.post("/forecast-evaluations/run-8am")(trigger_am_prediction)
+admin_routes_bp.post("/forecast-evaluations/collect-5pm")(trigger_pm_actuals)
+admin_routes_bp.post("/forecast-evaluations/run-daily-check")(run_daily_forecast_check)
+admin_routes_bp.get("/forecast-evaluations/table")(get_forecast_evaluation_table)  # public for dashboard

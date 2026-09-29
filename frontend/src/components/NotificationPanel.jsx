@@ -11,6 +11,7 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react';
+import { getUser } from '../services/auth';
 
 const TYPE_ICONS = {
   LANDSLIDE_ALERT: <AlertOctagon className="w-5 h-5 text-rose-500" />,
@@ -27,7 +28,8 @@ export default function NotificationPanel() {
   const [unreadCount, setUnreadCount] = useState(0);
   const panelRef = useRef(null);
 
-  const userId = 'user_123';
+  const sessionUser = getUser();
+  const userId = sessionUser?.id || sessionUser?._id || 'broadcast_all';
 
   const fetchNotifications = async () => {
     try {
@@ -40,13 +42,9 @@ export default function NotificationPanel() {
         setUnreadCount(notifs.filter((n) => !n.is_read).length);
       }
     } catch (error) {
-      // Fallback sample alerts for demonstration
-      const sampleNotifs = [
-        { _id: 'n1', type: 'TRAFFIC_ALERT', title: 'Avinashi Road Congestion', message: 'Heavy flow detected near Hope College intersection. Consider Mettupalayam bypass.', created_at: new Date().toISOString(), is_read: false },
-        { _id: 'n2', type: 'LANDSLIDE_ALERT', title: 'Western Ghats Warning', message: 'Heavy precipitation warning issued for Nilgiris foothills corridor.', created_at: new Date(Date.now() - 7200000).toISOString(), is_read: true }
-      ];
-      setNotifications(sampleNotifs);
-      setUnreadCount(1);
+      console.warn('Notifications fetch notice:', error);
+      setNotifications([]);
+      setUnreadCount(0);
     }
   };
 

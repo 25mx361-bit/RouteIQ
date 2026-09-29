@@ -12,13 +12,10 @@ export default function FavoritesPage() {
   const fetchFavorites = async () => {
     try {
       const res = await favoritesApi.list();
-      setFavorites(res.data?.favorites || res.data || []);
+      setFavorites(res.data?.favorites || (Array.isArray(res.data) ? res.data : []));
     } catch (err) {
-      console.warn('Favorites fetch fallback:', err);
-      setFavorites([
-        { _id: '1', source: { label: 'Gandhipuram, Coimbatore' }, destination: { label: 'R.S. Puram, Coimbatore' }, route_name: 'Avinashi & DB Road', distance_km: 8.5, duration_min: 15, congestion_level: 'LOW' },
-        { _id: '2', source: { label: 'Saravanampatti, Coimbatore' }, destination: { label: 'Tidel Park, Coimbatore' }, route_name: 'Avinashi Expressway', distance_km: 14.2, duration_min: 24, congestion_level: 'MEDIUM' }
-      ]);
+      console.warn('Favorites fetch notice:', err);
+      setFavorites([]);
     } finally {
       setLoading(false);
     }

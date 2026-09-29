@@ -11,6 +11,8 @@ Handles:
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
+import secrets
+from datetime import datetime, timezone, timedelta
 import bcrypt
 from flask_jwt_extended import create_access_token
 from loguru import logger
@@ -56,12 +58,14 @@ class AuthService:
         email: str,
         password: str,
         role: str = "user",
+        phone: Optional[str] = "",
     ) -> Dict[str, Any]:
         """
         Register a new user, hash password, check duplicate, and return access token.
         """
         name = name.strip() if name else ""
         email = email.strip().lower() if email else ""
+        phone = phone.strip() if phone else ""
 
         if not name:
             raise ValidationError("Name is required.")
@@ -87,6 +91,7 @@ class AuthService:
         user_data = {
             "name": name,
             "email": email,
+            "phone": phone,
             "password_hash": password_hash,
             "role": role_normalized,
             "is_active": True,
@@ -106,6 +111,7 @@ class AuthService:
                 "id": user_id,
                 "name": name,
                 "email": email,
+                "phone": phone,
                 "role": role_normalized,
             },
         }
@@ -169,6 +175,135 @@ class AuthService:
 
         user.pop("password_hash", None)
         return user
+
+    def update_profile(self, user_id: str, name: str, phone: str = "") -> Dict[str, Any]:
+        """
+        Update user's name and phone number in database.
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            raise UserNotFoundError()
+
+        name = name.strip() if name else ""
+        phone = phone.strip() if phone else ""
+        if not name:
+            raise ValidationError("Name cannot be empty.")
+
+        self.user_repo.update(user_id, {
+            "name": name,
+            "phone": phone,
+        })
+        logger.info(f"User profile updated: id={user_id}, name={name}, phone={phone}")
+
+        updated_user = self.user_repo.get_by_id(user_id)
+        if updated_user:
+            updated_user.pop("password_hash", None)
+        return {
+            "message": "Profile updated successfully.",
+            "user": updated_user,
+        }
+
+    def change_password(
+        self, user_id: str, old_password: str, new_password: str
+    ) -> Dict[str, Any]:
+        """
+        Validate old password and update to new bcrypt-hashed password.
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            raise UserNotFoundError()
+
+        if not old_password or not new_password:
+            raise ValidationError("Both current password and new password are required.")
+        if len(new_password) < 8:
+            raise ValidationError("New password must be at least 8 characters.")
+
+        stored_hash = user.get("password_hash", "")
+        if not stored_hash or not bcrypt.checkpw(
+            old_password.encode("utf-8"), stored_hash.encode("utf-8")
+        ):
+            raise InvalidCredentialsError("Current password is incorrect.")
+
+        salt = bcrypt.gensalt(rounds=12)
+        new_hash = bcrypt.hashpw(new_password.encode("utf-8"), salt).decode("utf-8")
+
+        self.user_repo.update(user_id, {"password_hash": new_hash})
+        logger.info(f"Password changed successfully for user id={user_id}")
+        return {"message": "Password changed successfully."}
+
+    def request_password_reset(self, email: str) -> Dict[str, Any]:
+        """
+        Generate a secure reset code for the user with 1-hour expiration.
+        """
+        email = email.strip().lower() if email else ""
+        if not email or "@" not in email:
+            raise ValidationError("A valid email address is required.")
+
+        user = self.user_repo.get_by_email(email)
+        if not user:
+            raise UserNotFoundError("No registered account found with that email address.")
+
+        user_id = str(user["_id"])
+        # Generate 6-char alphanumeric reset token (easy to type/paste)
+        reset_token = secrets.token_hex(3).upper()
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+
+        self.user_repo.update(user_id, {
+            "reset_token": reset_token,
+            "reset_token_expires": expires_at,
+        })
+        logger.info(f"Password reset token issued for email={email}: token={reset_token}")
+
+        return {
+            "message": f"Password reset code generated. Use code: {reset_token}",
+            "reset_token": reset_token,
+            "email": email,
+            "expires_in_minutes": 60,
+        }
+
+    def reset_password(
+        self, email: str, token: str, new_password: str
+    ) -> Dict[str, Any]:
+        """
+        Verify reset token and update password with bcrypt.
+        """
+        email = email.strip().lower() if email else ""
+        token = token.strip().upper() if token else ""
+        if not email or not token or not new_password:
+            raise ValidationError("Email, reset code, and new password are required.")
+        if len(new_password) < 8:
+            raise ValidationError("New password must be at least 8 characters.")
+
+        user = self.user_repo.get_by_email(email)
+        if not user:
+            raise UserNotFoundError("Account not found.")
+
+        stored_token = user.get("reset_token")
+        expires_at = user.get("reset_token_expires")
+
+        if not stored_token or stored_token.upper() != token:
+            raise ValidationError("Invalid or incorrect reset code.")
+
+        if expires_at:
+            if isinstance(expires_at, datetime):
+                # Ensure timezone aware comparison
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) > expires_at:
+                    raise ValidationError("Reset code has expired. Please request a new one.")
+
+        user_id = str(user["_id"])
+        salt = bcrypt.gensalt(rounds=12)
+        new_hash = bcrypt.hashpw(new_password.encode("utf-8"), salt).decode("utf-8")
+
+        self.user_repo.update(user_id, {
+            "password_hash": new_hash,
+            "reset_token": None,
+            "reset_token_expires": None,
+        })
+        logger.info(f"Password successfully reset for user id={user_id}, email={email}")
+
+        return {"message": "Password has been successfully reset. You can now log in."}
 
     def _generate_token(
         self, user_id: str, email: str, name: str, role: str

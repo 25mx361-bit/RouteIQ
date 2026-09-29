@@ -59,13 +59,21 @@ export default function TrafficCard({ trafficData, tci, loading }) {
     <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
       {/* Card Header */}
       <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
             <Gauge className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-gray-800 dark:text-slate-100">TomTom Traffic Dynamics</h4>
-            <p className="text-[10px] text-gray-400 dark:text-slate-500">Live flow velocity analysis</p>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-bold text-gray-800 dark:text-slate-100">TomTom Traffic Dynamics</h4>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                LIVE
+              </span>
+            </div>
+            <p className="text-[10px] text-gray-400 dark:text-slate-500 flex items-center gap-1 mt-0.5">
+              <Clock className="w-3 h-3 text-indigo-400" /> Last updated: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
           </div>
         </div>
         <div className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 ${currentStatus.bg} ${currentStatus.color}`}>

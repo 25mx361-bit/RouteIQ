@@ -16,17 +16,35 @@ export default function PredictionChart({ routes = [], title = 'Route Prediction
   const { isDark } = useTheme();
 
   const data = useMemo(() => {
-    if (!routes.length) {
-      return [
-        { label: '06:00', predictedSpeed: 48, freeFlowSpeed: 50, predictedTime: 12, freeFlowTime: 10 },
-        { label: '08:00', predictedSpeed: 32, freeFlowSpeed: 50, predictedTime: 22, freeFlowTime: 10 },
-        { label: '10:00', predictedSpeed: 38, freeFlowSpeed: 50, predictedTime: 18, freeFlowTime: 10 },
-        { label: '12:00', predictedSpeed: 42, freeFlowSpeed: 50, predictedTime: 15, freeFlowTime: 10 },
-        { label: '14:00', predictedSpeed: 45, freeFlowSpeed: 50, predictedTime: 14, freeFlowTime: 10 },
-        { label: '17:00', predictedSpeed: 26, freeFlowSpeed: 50, predictedTime: 28, freeFlowTime: 10 },
-        { label: '19:00', predictedSpeed: 34, freeFlowSpeed: 50, predictedTime: 20, freeFlowTime: 10 },
-        { label: '21:00', predictedSpeed: 48, freeFlowSpeed: 50, predictedTime: 12, freeFlowTime: 10 },
+    if (!routes || routes.length <= 1) {
+      const targetRoute = routes?.[0] || {};
+      const targetSpeed = targetRoute.predicted_speed_kmh || 35.0;
+      const ffSpeed = targetRoute.free_flow_speed_kmh || 50.0;
+      const dist = targetRoute.distance_km || 10.0;
+      
+      const hours = [
+        { label: '06:00', speedFactor: 0.95 },
+        { label: '08:00 (Morning Peak)', speedFactor: 0.68 },
+        { label: '10:00', speedFactor: 0.82 },
+        { label: '12:00', speedFactor: 0.88 },
+        { label: '14:00', speedFactor: 0.92 },
+        { label: '17:00 (Target Horizon)', speedFactor: 0.58 },
+        { label: '19:00', speedFactor: 0.72 },
+        { label: '21:00', speedFactor: 0.96 },
       ];
+
+      return hours.map(h => {
+        const speed = Math.round(ffSpeed * h.speedFactor);
+        const time = Math.round((dist / Math.max(speed, 1)) * 60);
+        const idealTime = Math.round((dist / Math.max(ffSpeed, 1)) * 60);
+        return {
+          label: h.label,
+          predictedSpeed: speed,
+          freeFlowSpeed: Math.round(ffSpeed),
+          predictedTime: time,
+          freeFlowTime: idealTime,
+        };
+      });
     }
     return routes.map((r, idx) => ({
       label: (r.name ? r.name.slice(0, 16) : `Option ${idx + 1}`),

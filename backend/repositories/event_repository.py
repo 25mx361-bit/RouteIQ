@@ -38,7 +38,9 @@ class EventRepository(BaseRepository[EventModel]):
         date_str: Optional[str] = None,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        query: Dict[str, Any] = {}
+        query: Dict[str, Any] = {
+            "title": {"$exists": True, "$ne": None, "$nin": ["", None]},
+        }
         if event_type and event_type.upper() != "ALL":
             query["event_type"] = event_type.upper()
         if status and status.upper() != "ALL":

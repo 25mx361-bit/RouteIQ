@@ -1,8 +1,72 @@
 {
   "status": "success",
-  "timestamp": "2026-08-26T22:05:56.768814",
-  "mae": 413.1198,
-  "rmse": 1107.3542,
-  "mape": 19.9103,
-  "val_loss_scaled": 87251.7812
+  "timestamp": "2026-09-19T20:51:06.879737",
+  "model_version": "PatchTST_v2",
+  "mae": 9.2495,
+  "rmse": 12.8828,
+  "mape": 32.3307,
+  "derived_accuracy_score": 67.67,
+  "per_variable": {
+    "speed_kmh": {
+      "mae": 9.2495,
+      "rmse": 12.8828,
+      "mape": 32.3307,
+      "derived_accuracy": 67.6693
+    },
+    "current_travel_time": {
+      "mae": 2497.7868,
+      "rmse": 2658.4121,
+      "mape": 645.5795,
+      "derived_accuracy": 0.0
+    }
+  },
+  "baseline": {
+    "type": "HistoricalAverageBaseline",
+    "mae": 16.5085,
+    "rmse": 17.9675,
+    "mape": 70.5767
+  },
+  "dataset": {
+    "total_records": 2072,
+    "real_records": 632,
+    "synthetic_records": 1440,
+    "date_range_start": "2026-08-11 00:00:00",
+    "date_range_end": "2026-09-09 15:20:19.280000",
+    "train_records": 1422,
+    "val_records": 305,
+    "test_records": 305
+  },
+  "architecture": {
+    "context_length": 96,
+    "forecast_horizon": 36,
+    "patch_length": 16,
+    "patch_stride": 8,
+    "d_model": 128,
+    "n_heads": 8,
+    "n_encoder_layers": 3,
+    "dropout": 0.1,
+    "num_features": 12,
+    "num_target_features": 2
+  },
+  "training": {
+    "epochs_run": 11,
+    "best_val_loss": 8.174262,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "batch_size": 32
+  },
+  "features_used": [
+    "speed_kmh",
+    "free_flow_speed",
+    "current_travel_time",
+    "free_flow_travel_time",
+    "temperature",
+    "precipitation",
+    "humidity",
+    "wind_speed",
+    "hour_sin",
+    "hour_cos",
+    "day_of_week",
+    "is_weekend"
+  ]
 }

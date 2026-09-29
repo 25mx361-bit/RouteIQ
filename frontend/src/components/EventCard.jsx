@@ -12,7 +12,7 @@ import {
   Megaphone,
 } from 'lucide-react';
 
-export const EVENT_TYPE_CONFIG = {
+const EVENT_TYPE_CONFIG = {
   FESTIVAL: {
     label: 'Festival & Temple Procession',
     icon: Flame,
@@ -63,7 +63,7 @@ export const EVENT_TYPE_CONFIG = {
   },
 };
 
-export const IMPACT_LEVEL_CONFIG = {
+const IMPACT_LEVEL_CONFIG = {
   CRITICAL: {
     label: 'Critical Bottleneck',
     badge: 'bg-red-500/20 text-red-400 border-red-500/40',
@@ -90,67 +90,84 @@ export default function EventCard({ event, onEdit, onDelete, isAdmin = false }) 
   const TypeIcon = typeConfig.icon;
 
   const formatDate = (d) => {
-    if (!d) return 'Ongoing';
+    if (!d) return 'Scheduled';
     try {
-      return new Date(d).toLocaleDateString(undefined, {
+      let parsed = new Date(d);
+      if (isNaN(parsed.getTime()) && typeof d === 'string') {
+        parsed = new Date(d.replace(' ', 'T'));
+      }
+      if (isNaN(parsed.getTime())) return 'Scheduled Event';
+      return parsed.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
       });
     } catch {
-      return d;
+      return 'Scheduled Event';
     }
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg hover:border-slate-700 transition-all space-y-3">
+    <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-slate-700 transition-all space-y-3">
       {/* Top Badges */}
       <div className="flex items-center justify-between gap-2">
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold ${typeConfig.bg}`}>
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs font-semibold ${typeConfig.bg}`}>
           <TypeIcon className={`w-3.5 h-3.5 ${typeConfig.color}`} />
           <span className={typeConfig.color}>{typeConfig.label}</span>
         </div>
 
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${impactConfig.badge}`}>
-          {impactConfig.label}
-        </span>
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {event.is_tamil_calendar && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+              தமிழ் நிகழ்வு
+            </span>
+          )}
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${impactConfig.badge}`}>
+            {impactConfig.label}
+          </span>
+        </div>
       </div>
 
       {/* Title & Description */}
       <div>
-        <h4 className="text-sm font-bold text-slate-100">{event.title}</h4>
+        <h4 className="text-sm font-bold text-gray-900 dark:text-slate-100">{event.title}</h4>
+        {event.tamil_title && (
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mt-0.5">
+            {event.tamil_title}
+          </p>
+        )}
         {event.description && (
-          <p className="text-xs text-slate-400 mt-1 line-clamp-2">{event.description}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2">{event.description}</p>
         )}
       </div>
 
       {/* Location & Crowd Metrics */}
-      <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
-        <div className="flex items-center gap-1.5 text-slate-300">
-          <MapPin className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+      <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 dark:bg-slate-950/80 p-2.5 rounded-xl border border-gray-100 dark:border-slate-800/80">
+        <div className="flex items-center gap-1.5 text-gray-700 dark:text-slate-300">
+          <MapPin className="w-3.5 h-3.5 text-teal-500 dark:text-teal-400 shrink-0" />
           <span className="truncate">{event.venue_name || event.road_name || 'Coimbatore Venue'}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 text-slate-300">
-          <Users className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+        <div className="flex items-center gap-1.5 text-gray-700 dark:text-slate-300">
+          <Users className="w-3.5 h-3.5 text-indigo-500 dark:text-blue-400 shrink-0" />
           <span>{event.expected_crowd?.toLocaleString() || 500} expected</span>
         </div>
       </div>
 
       {/* Timing & Admin Actions */}
-      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-        <div className="flex items-center gap-1">
-          <Calendar className="w-3.5 h-3.5 text-slate-500" />
-          <span>{formatDate(event.start_time)}</span>
+      <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-400 pt-1">
+        <div className="flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
+          <span className="font-medium">{formatDate(event.start_time)}</span>
         </div>
 
         {isAdmin && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {onEdit && (
               <button
                 onClick={() => onEdit(event)}
-                className="text-blue-400 hover:text-blue-300 font-medium cursor-pointer"
+                className="text-indigo-600 dark:text-blue-400 hover:text-indigo-700 dark:hover:text-blue-300 font-semibold cursor-pointer transition"
               >
                 Edit
               </button>
@@ -158,7 +175,7 @@ export default function EventCard({ event, onEdit, onDelete, isAdmin = false }) 
             {onDelete && (
               <button
                 onClick={() => onDelete(event._id)}
-                className="text-rose-400 hover:text-rose-300 font-medium cursor-pointer"
+                className="text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 font-semibold cursor-pointer transition"
               >
                 Delete
               </button>

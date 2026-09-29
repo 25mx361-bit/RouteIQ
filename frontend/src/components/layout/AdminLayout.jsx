@@ -8,18 +8,11 @@ import AdminSidebar from './AdminSidebar';
 import AppHeader from './AppHeader';
 
 const ADMIN_TITLES = {
-  '/admin':                'Admin Dashboard',
-  '/admin/users':          'User Management',
-  '/admin/traffic':        'Traffic Data Management',
-  '/admin/models':         'ML Model Management',
-  '/admin/predictions':    'Prediction Monitoring',
-  '/admin/routes':         'Route & API Monitor',
-  '/admin/api-status':     'API Status',
-  '/admin/events':         'Events Console',
-  '/admin/landslides':     'Landslides Console',
-  '/admin/reports':        'Reports & Analytics',
-  '/admin/logs':           'System Logs',
-  '/admin/settings':       'Admin Settings',
+  '/admin':            'Admin Dashboard',
+  '/admin/users':      'User Management',
+  '/admin/events':     'Events & Tamil Calendar',
+  '/admin/landslides': 'Landslides Hazard Management',
+  '/admin/reports':    'Reports & Analytics',
 };
 
 export default function AdminLayout() {

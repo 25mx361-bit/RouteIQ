@@ -44,6 +44,26 @@ def require_auth(fn: Callable) -> Callable:
     return wrapper
 
 
+def optional_auth(fn: Callable) -> Callable:
+    """
+    Decorator for endpoints that can work for both authenticated and guest users.
+    Populates Flask `g.current_user_id` and `g.current_user_claims` if a valid JWT is present,
+    without raising 401 if absent or invalid.
+    """
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            verify_jwt_in_request(optional=True)
+            g.current_user_id = get_jwt_identity()
+            g.current_user_claims = get_jwt() if g.current_user_id else {}
+        except Exception:
+            g.current_user_id = None
+            g.current_user_claims = {}
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
 def require_admin(fn: Callable) -> Callable:
     """
     Decorator to restrict route access strictly to users with the 'admin' role.

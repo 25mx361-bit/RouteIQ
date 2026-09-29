@@ -140,57 +140,55 @@ export default function LandslidesPage() {
   const activeCount = landslides.filter((l) => l.is_active || l.status === 'ACTIVE').length;
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden">
-      {/* Top Header */}
-      <header className="h-16 shrink-0 bg-slate-900/80 backdrop-blur border-b border-slate-800 px-6 flex items-center justify-between z-20">
+    <div className="p-6 md:p-8 space-y-6 bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100 min-h-full transition-colors duration-200">
+      {/* Top Banner */}
+      <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center shadow-lg shadow-red-900/40">
-            <AlertOctagon className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-2xl bg-rose-600 dark:bg-rose-500 text-white flex items-center justify-center shadow-md shadow-rose-500/20">
+            <AlertOctagon className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-white">
+              <h2 className="text-base md:text-lg font-bold text-gray-900 dark:text-slate-100">
                 Landslide Hazard & Blockade Control
-              </h1>
-              <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-red-500/10 text-red-400 border border-red-500/30 rounded-full">
-                Admin Emergency Console
+              </h2>
+              <span className="text-[10px] uppercase font-mono px-2.5 py-0.5 bg-rose-50 dark:bg-red-950/60 text-rose-700 dark:text-red-400 border border-rose-200 dark:border-red-900/50 rounded-full font-bold">
+                Emergency Console
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
-              Admin-Entered Landslide Blockades (PatchTST does NOT detect landslides)
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+              Admin-Entered Landslide Blockades (Real-time safety policy excludes blocked corridors)
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/admin')}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-colors"
-            >
-              Back to Map
-            </button>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            onClick={() => navigate('/admin')}
+            className="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 text-xs font-semibold text-gray-700 dark:text-slate-200 shadow-sm transition"
+          >
+            Back to Map
+          </button>
 
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold shadow-lg shadow-red-900/30 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            Report Landslide
+            <span>Report Landslide</span>
           </button>
-
-          <NotificationPanel />
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col p-6 overflow-y-auto space-y-5">
+      <div className="space-y-6">
         {/* Alert Notification */}
         {alertMsg && (
           <div
-            className={`p-3 rounded-lg text-xs flex items-center justify-between ${
+            className={`p-3.5 rounded-2xl text-xs flex items-center justify-between shadow-sm ${
               alertMsg.type === 'success'
-                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
-                : 'bg-rose-500/10 border border-rose-500/30 text-rose-300'
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                : 'bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
             }`}
           >
             <span>{alertMsg.text}</span>
@@ -201,51 +199,51 @@ export default function LandslidesPage() {
         )}
 
         {/* Stats Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-            <div className="p-2 bg-red-500/10 text-red-400 rounded-lg">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-sm flex items-center gap-3.5">
+            <div className="p-3 bg-rose-50 dark:bg-red-500/10 text-rose-600 dark:text-red-400 rounded-xl border border-rose-200 dark:border-red-500/20">
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] text-slate-400 uppercase font-medium">Active Hazard Blockades</div>
-              <div className="text-lg font-black text-red-400">{activeCount} Corridors Closed</div>
+              <div className="text-[10px] text-gray-500 dark:text-slate-400 uppercase font-bold tracking-wider">Active Hazard Blockades</div>
+              <div className="text-xl font-black text-rose-600 dark:text-red-400">{activeCount} Corridors Closed</div>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-sm flex items-center gap-3.5">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] text-slate-400 uppercase font-medium">Resolved Restorations</div>
-              <div className="text-lg font-black text-emerald-400">
+              <div className="text-[10px] text-gray-500 dark:text-slate-400 uppercase font-bold tracking-wider">Resolved Restorations</div>
+              <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
                 {landslides.filter((l) => l.status === 'RESOLVED').length} Restored
               </div>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-            <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg">
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-sm flex items-center gap-3.5">
+            <div className="p-3 bg-indigo-50 dark:bg-blue-500/10 text-indigo-600 dark:text-blue-400 rounded-xl border border-indigo-200 dark:border-blue-500/20">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] text-slate-400 uppercase font-medium">Safety Policy</div>
-              <div className="text-xs font-semibold text-slate-200">Blocked routes NEVER recommended</div>
+              <div className="text-[10px] text-gray-500 dark:text-slate-400 uppercase font-bold tracking-wider">Safety Policy</div>
+              <div className="text-xs font-semibold text-gray-800 dark:text-slate-200">Blocked routes NEVER recommended</div>
             </div>
           </div>
         </div>
 
         {/* Filter Bar */}
-        <div className="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+        <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-1.5">
             {['ALL', 'ACTIVE', 'RESOLVED'].map((status) => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   statusFilter === status
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+                    ? 'bg-rose-600 text-white shadow-sm font-bold'
+                    : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700'
                 }`}
               >
                 {status} HAZARDS
@@ -254,132 +252,155 @@ export default function LandslidesPage() {
           </div>
 
           {loading && (
-            <div className="flex items-center gap-1 text-xs text-red-400 animate-pulse">
+            <div className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-red-400 animate-pulse font-semibold">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              Syncing hazards...
+              <span>Syncing hazards...</span>
             </div>
           )}
         </div>
 
-        {/* Landslides List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {landslides.map((ls) => {
-            const isActive = ls.is_active || ls.status === 'ACTIVE';
-            return (
-              <div
-                key={ls._id}
-                className={`p-4 rounded-xl border transition-all space-y-3 ${
-                  isActive
-                    ? 'bg-red-950/20 border-red-500/50 shadow-lg shadow-red-950/30'
-                    : 'bg-slate-900/60 border-slate-800'
-                }`}
+        {/* Landslides List or Clean Reassuring Empty State */}
+        {landslides.length === 0 && !loading ? (
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl p-12 text-center shadow-sm space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-200 dark:border-emerald-800/80 shadow-md">
+              <CheckCircle2 className="w-7 h-7" />
+            </div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-slate-100">
+              All Corridors & Ghat Roads Passable
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+              No active landslide hazards or rockfall blockades currently reported across Coimbatore, Nilgiris, or Valparai ghat corridors.
+            </p>
+            <div className="pt-2">
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full ${
-                          isActive ? 'bg-red-500 animate-ping' : 'bg-emerald-400'
-                        }`}
-                      ></span>
-                      <h4 className="text-sm font-bold text-slate-100">{ls.title}</h4>
+                <Plus className="w-4 h-4" />
+                <span>Report Emergency Hazard</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {landslides.map((ls) => {
+              const isActive = ls.is_active || ls.status === 'ACTIVE';
+              return (
+                <div
+                  key={ls._id}
+                  className={`p-5 rounded-2xl border transition-all space-y-3 shadow-sm ${
+                    isActive
+                      ? 'bg-rose-50/70 dark:bg-red-950/20 border-rose-300 dark:border-red-500/50 shadow-md'
+                      : 'bg-white dark:bg-slate-900/60 border-gray-200 dark:border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full ${
+                            isActive ? 'bg-rose-500 animate-ping' : 'bg-emerald-500'
+                          }`}
+                        ></span>
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-slate-100">{ls.title}</h4>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{ls.description}</p>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">{ls.description}</p>
-                  </div>
 
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase shrink-0 ${
-                      isActive
-                        ? 'bg-red-500/20 text-red-300 border-red-500/50'
-                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                    }`}
-                  >
-                    {ls.status || (isActive ? 'ACTIVE' : 'RESOLVED')}
-                  </span>
-                </div>
-
-                {/* Location & Radius Details */}
-                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
-                  <div className="flex items-center gap-1.5 text-slate-300">
-                    <MapPin className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                    <span className="truncate">{ls.region_name}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-300">
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="truncate">{ls.road_name}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <div className="flex items-center gap-1">
-                    <Droplets className="w-3 h-3 text-sky-400" />
-                    <span>Rainfall: {ls.rainfall_mm || 0}mm · Radius: {ls.radius_m}m</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {isActive ? (
-                      <button
-                        onClick={() => handleResolve(ls._id)}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded font-semibold transition-colors"
-                      >
-                        <Check className="w-3 h-3" />
-                        Mark Resolved
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleActivate(ls._id)}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 rounded font-semibold transition-colors"
-                      >
-                        <Play className="w-3 h-3" />
-                        Re-Activate
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => handleDelete(ls._id)}
-                      className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
-                      title="Delete record"
+                    <span
+                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border uppercase shrink-0 ${
+                        isActive
+                          ? 'bg-rose-100 dark:bg-red-500/20 text-rose-700 dark:text-red-300 border-rose-200 dark:border-red-500/50'
+                          : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30'
+                      }`}
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                      {ls.status || (isActive ? 'ACTIVE' : 'RESOLVED')}
+                    </span>
+                  </div>
+
+                  {/* Location & Radius Details */}
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 dark:bg-slate-950/80 p-3 rounded-xl border border-gray-100 dark:border-slate-800">
+                    <div className="flex items-center gap-1.5 text-gray-700 dark:text-slate-300">
+                      <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <span className="truncate">{ls.region_name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-gray-700 dark:text-slate-300">
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span className="truncate">{ls.road_name}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-400 pt-1">
+                    <div className="flex items-center gap-1">
+                      <Droplets className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Rainfall: {ls.rainfall_mm || 0}mm · Radius: {ls.radius_m}m</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {isActive ? (
+                        <button
+                          onClick={() => handleResolve(ls._id)}
+                          className="flex items-center gap-1 px-3 py-1 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 rounded-xl font-semibold transition"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Mark Resolved</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleActivate(ls._id)}
+                          className="flex items-center gap-1 px-3 py-1 bg-rose-50 dark:bg-red-500/10 hover:bg-rose-100 text-rose-700 dark:text-red-300 border border-rose-200 dark:border-red-500/30 rounded-xl font-semibold transition"
+                        >
+                          <Play className="w-3 h-3" />
+                          <span>Re-Activate</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleDelete(ls._id)}
+                        className="p-1.5 text-gray-400 hover:text-rose-600 transition"
+                        title="Delete record"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Add Landslide Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
-              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                <AlertOctagon className="w-4 h-4 text-red-400" />
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/70 dark:bg-slate-950/60">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
+                <AlertOctagon className="w-4 h-4 text-rose-600 dark:text-red-400" />
                 Report Emergency Landslide Hazard
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-200">
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Hazard Title *</label>
+                <label className="block text-gray-700 dark:text-slate-300 font-semibold mb-1">Hazard Title *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Severe Rockfall at Hairpin 8"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-slate-100 focus:outline-none focus:border-red-500"
+                  className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 px-3.5 py-2.5 rounded-xl text-gray-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 transition"
                 />
               </div>
 
               {/* Ghat Road Presets */}
               <div className="space-y-1.5">
-                <label className="block text-slate-400 font-medium">Quick Ghat Corridor Presets</label>
+                <label className="block text-gray-700 dark:text-slate-300 font-semibold">Quick Ghat Corridor Presets</label>
                 <div className="flex flex-wrap gap-1.5">
                   {GHAT_PRESETS.map((gp) => (
                     <button
@@ -396,7 +417,7 @@ export default function LandslidesPage() {
                           rainfall_mm: gp.rainfall,
                         })
                       }
-                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 border border-slate-700 transition-colors"
+                      className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-[10px] text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition"
                     >
                       {gp.name}
                     </button>
@@ -406,76 +427,76 @@ export default function LandslidesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Region Name</label>
+                  <label className="block text-gray-700 dark:text-slate-300 font-semibold mb-1">Region Name</label>
                   <input
                     type="text"
                     value={formData.region_name}
                     onChange={(e) => setFormData({ ...formData, region_name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-slate-100 focus:outline-none focus:border-red-500"
+                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 px-3.5 py-2.5 rounded-xl text-gray-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Road / Highway Name</label>
+                  <label className="block text-gray-700 dark:text-slate-300 font-semibold mb-1">Road / Highway Name</label>
                   <input
                     type="text"
                     value={formData.road_name}
                     onChange={(e) => setFormData({ ...formData, road_name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-slate-100 focus:outline-none focus:border-red-500"
+                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 px-3.5 py-2.5 rounded-xl text-gray-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 transition"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Latitude</label>
+                  <label className="block text-gray-700 dark:text-slate-300 font-semibold mb-1">Latitude</label>
                   <input
                     type="number"
                     step="any"
                     value={formData.lat}
                     onChange={(e) => setFormData({ ...formData, lat: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-slate-100 font-mono focus:outline-none focus:border-red-500"
+                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 px-3.5 py-2.5 rounded-xl text-gray-900 dark:text-slate-100 font-mono focus:outline-none focus:border-rose-500 transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Longitude</label>
+                  <label className="block text-gray-700 dark:text-slate-300 font-semibold mb-1">Longitude</label>
                   <input
                     type="number"
                     step="any"
                     value={formData.lng}
                     onChange={(e) => setFormData({ ...formData, lng: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-slate-100 font-mono focus:outline-none focus:border-red-500"
+                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 px-3.5 py-2.5 rounded-xl text-gray-900 dark:text-slate-100 font-mono focus:outline-none focus:border-rose-500 transition"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Blockage Radius (meters)</label>
+                  <label className="block text-gray-700 dark:text-slate-300 font-semibold mb-1">Blockage Radius (meters)</label>
                   <input
                     type="number"
                     value={formData.radius_m}
                     onChange={(e) => setFormData({ ...formData, radius_m: parseFloat(e.target.value) || 2500 })}
-                    className="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-slate-100 focus:outline-none focus:border-red-500"
+                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 px-3.5 py-2.5 rounded-xl text-gray-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Rainfall (mm)</label>
+                  <label className="block text-gray-700 dark:text-slate-300 font-semibold mb-1">Rainfall (mm)</label>
                   <input
                     type="number"
                     value={formData.rainfall_mm}
                     onChange={(e) => setFormData({ ...formData, rainfall_mm: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-slate-100 focus:outline-none focus:border-red-500"
+                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 px-3.5 py-2.5 rounded-xl text-gray-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 transition"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Description & Debris Details</label>
+                <label className="block text-gray-700 dark:text-slate-300 font-semibold mb-1">Description & Debris Details</label>
                 <textarea
                   rows={2}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-slate-100 focus:outline-none focus:border-red-500"
+                  className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 px-3.5 py-2.5 rounded-xl text-gray-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 transition"
                 ></textarea>
               </div>
 
@@ -483,13 +504,13 @@ export default function LandslidesPage() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-semibold transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold shadow-lg shadow-red-900/30"
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-500/20 transition"
                 >
                   Enter Hazard & Block Route
                 </button>
