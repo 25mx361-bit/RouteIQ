@@ -8,10 +8,20 @@ import corridorGeometries from '../data/corridor_geometries.json';
 
 // Landmark geocoder for Coimbatore hubs
 const resolveCoimbatoreCoords = (label, fallbackLat, fallbackLng) => {
+  // If valid coordinates were already selected/geocoded, always respect them!
+  const fLat = Number(fallbackLat);
+  const fLng = Number(fallbackLng);
+  if (!isNaN(fLat) && !isNaN(fLng) && fLat > 10.7 && fLat < 11.4 && fLng > 76.8 && fLng < 77.3) {
+    return [fLat, fLng];
+  }
+
   const l = (label || '').toLowerCase();
   if (l.includes('gandhipuram')) return [11.0168, 76.9558];
   if (l.includes('peelamedu') && (l.includes('airport') || l.includes('maheshwari'))) return [11.0324, 77.0411];
-  if (l.includes('peelamedu') || l.includes('psg')) return [11.0244, 77.0028];
+  if (l.includes('psg')) return [11.0244, 77.0028]; // PSG Tech
+  if (l.includes('peelamedu')) return [11.0287, 77.0042]; // Peelamedu proper (Avinashi Rd / Peelamedu)
+  if (l.includes('hope') || l.includes('hopes')) return [11.0238, 77.0185]; // Hopes College
+  if (l.includes('thanneerpanthal')) return [11.0338, 77.0145];
   if (l.includes('airport')) return [11.0298, 77.0434];
   if (l.includes('rs puram') || l.includes('r.s. puram')) return [11.0094, 76.9458];
   if (l.includes('junction') || l.includes('railway')) return [10.9980, 76.9634];
@@ -31,118 +41,230 @@ export default function RouteMapPage() {
       let parsed = null;
       const stored = sessionStorage.getItem('routeiq_search_result');
       if (stored) {
-        try {
-          parsed = JSON.parse(stored);
-        } catch (e) {}
+        try { parsed = JSON.parse(stored); } catch (e) {}
       }
-
       if (!parsed || !Array.isArray(parsed.routes) || parsed.routes.length === 0) {
         parsed = JSON.parse(JSON.stringify(PRESET_CORRIDORS[0]));
       }
 
       // 1. Resolve source and destination coordinates
-      const sLabel = parsed.source?.label || parsed.source_label || 'Gandhipuram, Coimbatore';
-      const dLabel = parsed.destination?.label || parsed.dest_label || parsed.destination_label || 'Peelamedu, Coimbatore';
-      
-      const [sLat, sLng] = resolveCoimbatoreCoords(sLabel, Number(parsed.source?.lat) || 11.0168, Number(parsed.source?.lng) || 76.9558);
-      const [dLat, dLng] = resolveCoimbatoreCoords(dLabel, Number(parsed.destination?.lat) || 11.0324, Number(parsed.destination?.lng) || 77.0411);
+      const sLabel = parsed.source?.label || parsed.source_label || 'Peelamedu, Coimbatore';
+      const dLabel = parsed.destination?.label || parsed.dest_label || parsed.destination_label || 'Hopes College, Coimbatore';
+      const [sLat, sLng] = resolveCoimbatoreCoords(sLabel, Number(parsed.source?.lat) || 11.0287, Number(parsed.source?.lng) || 77.0042);
+      const [dLat, dLng] = resolveCoimbatoreCoords(dLabel, Number(parsed.destination?.lat) || 11.0238, Number(parsed.destination?.lng) || 77.0185);
 
       parsed.source = { lat: sLat, lng: sLng, label: sLabel };
       parsed.destination = { lat: dLat, lng: dLng, label: dLabel };
 
-      // 2. Sort routes: LOWEST CONGESTION (TCI) & SHORTEST DURATION MUST BE FIRST (FASTEST)
+      // Helper: check if route enters a dead-end layout like Ramasamy Layout or has internal residential cul-de-sac turnaround
+      const hasDeadEndOrUturn = (routeObj) => {
+        if (!routeObj || !routeObj.legs) return false;
+        for (const leg of routeObj.legs) {
+          const steps = leg.steps || [];
+          for (let i = 0; i < steps.length; i++) {
+            const name = (steps[i].name || '').toLowerCase();
+            if (name.includes('ramasamy')) return true;
+            const man = steps[i].maneuver || {};
+            if (man.modifier === 'uturn') {
+              const dist = Number(steps[i].distance || 0);
+              const isDividedArterial = ['avinashi', 'trichy', 'sathy', 'mettupalayam', 'pollachi', 'arterial', 'expressway', 'bypass'].some(art => name.includes(art));
+              if (!isDividedArterial && dist < 25) return true;
+            }
+          }
+        }
+        return false;
+      };
+
+      // Helper: extract primary road name from OSRM step list
+      const extractRoadName = (steps) => {
+        if (!steps || steps.length === 0) return null;
+        const dist = {};
+        steps.forEach(s => {
+          const n = (s.name || '').trim();
+          if (n && !['', 'unnamed road', 'connecting street', 'road', 'connecting road'].includes(n.toLowerCase())) {
+            let clean = n;
+            if (clean.toLowerCase().includes('vilankur') || clean.toLowerCase().includes('pioneer mill')) {
+              clean = 'Thanneerpanthal Road';
+            }
+            if (!clean.toLowerCase().includes('ramasamy')) {
+              dist[clean] = (dist[clean] || 0) + (s.distance || 0);
+            }
+          }
+        });
+        const sorted = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+        if (sorted.length >= 2) return `${sorted[0][0]} & ${sorted[1][0]}`;
+        if (sorted.length === 1) return sorted[0][0];
+        return null;
+      };
+
+      // Helper: fetch OSRM route(s) for a given coordinate path string
+      const osrmFetch = async (coordPath, params = 'overview=full&geometries=geojson&steps=true') => {
+        const mirrors = [
+          'https://routing.openstreetmap.de/routed-car/route/v1/driving/',
+          'https://router.project-osrm.org/route/v1/driving/',
+        ];
+        for (const ep of mirrors) {
+          try {
+            const r = await fetch(`${ep}${coordPath}?${params}`);
+            if (r.ok) {
+              const json = await r.json();
+              if (json.routes && json.routes.length > 0) return json;
+            }
+          } catch (_) {}
+        }
+        return null;
+      };
+
+      // 2. Fetch primary route geometry from OSRM
+      let primaryCoords = [];
+      let primaryName = null;
+      let altCoords = [];
+      let altName = null;
+
+      try {
+        // Primary: fastest route
+        const primaryData = await osrmFetch(`${sLng},${sLat};${dLng},${dLat}`);
+        if (primaryData) {
+          const r0 = primaryData.routes[0];
+          primaryCoords = r0.geometry.coordinates.map(c => [c[1], c[0]]);
+          const steps = r0.legs?.flatMap(l => l.steps || []) || [];
+          primaryName = extractRoadName(steps);
+
+          // Check if Peelamedu <-> Hopes corridor — use authentic Thanneerpanthal Road parallel corridor
+          const isPeelameduHopes = (
+            (Math.abs(sLat - 11.0287) < 0.015 && Math.abs(sLng - 77.0042) < 0.020 && Math.abs(dLat - 11.0238) < 0.015 && Math.abs(dLng - 77.0185) < 0.020) ||
+            (Math.abs(dLat - 11.0287) < 0.015 && Math.abs(dLng - 77.0042) < 0.020 && Math.abs(sLat - 11.0238) < 0.015 && Math.abs(sLng - 77.0185) < 0.020) ||
+            (sLabel.toLowerCase().includes('peelamedu') && dLabel.toLowerCase().includes('hope'))
+          );
+
+          if (isPeelameduHopes) {
+            // Real through-road: Thanneerpanthal Road / Vilankurichi Road waypoint
+            const tpData = await osrmFetch(`${sLng},${sLat};77.015994,11.034387;${dLng},${dLat}`);
+            if (tpData && tpData.routes && tpData.routes.length > 0) {
+              const tr = tpData.routes[0];
+              if (!hasDeadEndOrUturn(tr)) {
+                altCoords = tr.geometry.coordinates.map(c => [c[1], c[0]]);
+                altName = 'Thanneerpanthal Road';
+              }
+            }
+          }
+
+          // Alternative: use OSRM alternatives=true if not yet found
+          if (altCoords.length === 0) {
+            const altData = await osrmFetch(`${sLng},${sLat};${dLng},${dLat}`, 'overview=full&geometries=geojson&steps=true&alternatives=true');
+            if (altData && altData.routes.length > 1) {
+              const r1 = altData.routes[1];
+              const r1Dist = r1.distance || 0;
+              const r0Dist = primaryData.routes[0].distance || 0;
+              if (r1Dist <= r0Dist * 1.55 && !hasDeadEndOrUturn(r1)) {
+                altCoords = r1.geometry.coordinates.map(c => [c[1], c[0]]);
+                const altSteps = r1.legs?.flatMap(l => l.steps || []) || [];
+                altName = extractRoadName(altSteps);
+              }
+            }
+          }
+
+          // If still no alternative, generate via verified through-road perpendicular waypoint
+          if (altCoords.length === 0) {
+            const midLat = (sLat + dLat) / 2;
+            const midLng = (sLng + dLng) / 2;
+            const dlat = dLat - sLat;
+            const dlng = dLng - sLng;
+            const len = Math.sqrt(dlat * dlat + dlng * dlng) || 1e-9;
+            const offset = Math.max(0.005, len * 0.06);
+
+            // Try first perpendicular side
+            const wpLat = midLat + (dlng / len) * offset;
+            const wpLng = midLng - (dlat / len) * offset;
+
+            const wpData = await osrmFetch(`${sLng},${sLat};${wpLng},${wpLat};${dLng},${dLat}`);
+            if (wpData && wpData.routes.length > 0) {
+              const wr = wpData.routes[0];
+              const wrDist = wr.distance || 0;
+              const r0Dist = primaryData.routes[0].distance || 0;
+              if (wrDist <= r0Dist * 1.55 && !hasDeadEndOrUturn(wr)) {
+                altCoords = wr.geometry.coordinates.map(c => [c[1], c[0]]);
+                const altSteps = wr.legs?.flatMap(l => l.steps || []) || [];
+                altName = extractRoadName(altSteps);
+              }
+            }
+
+            // Try opposite perpendicular side if first failed or was a dead-end
+            if (altCoords.length === 0) {
+              const wpLat2 = midLat - (dlng / len) * offset;
+              const wpLng2 = midLng + (dlat / len) * offset;
+              const wpData2 = await osrmFetch(`${sLng},${sLat};${wpLng2},${wpLat2};${dLng},${dLat}`);
+              if (wpData2 && wpData2.routes.length > 0) {
+                const wr2 = wpData2.routes[0];
+                const wr2Dist = wr2.distance || 0;
+                const r0Dist = primaryData.routes[0].distance || 0;
+                if (wr2Dist <= r0Dist * 1.55 && !hasDeadEndOrUturn(wr2)) {
+                  altCoords = wr2.geometry.coordinates.map(c => [c[1], c[0]]);
+                  const altSteps2 = wr2.legs?.flatMap(l => l.steps || []) || [];
+                  altName = extractRoadName(altSteps2);
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('OSRM fetch error:', err);
+      }
+
+      // 3. Sort backend routes: fastest first
       const sorted = [...parsed.routes].sort((a, b) => {
         const tciA = Number(a.tci) || (a.congestion_level === 'HIGH' ? 1.9 : a.congestion_level === 'MEDIUM' ? 1.4 : 1.15);
         const tciB = Number(b.tci) || (b.congestion_level === 'HIGH' ? 1.9 : b.congestion_level === 'MEDIUM' ? 1.4 : 1.15);
-        
-        // If congestion levels differ significantly, lowest congestion wins
-        if (Math.abs(tciA - tciB) > 0.15) {
-          return tciA - tciB;
-        }
-        // Otherwise prefer shorter duration
-        const durA = Number(a.duration_min) || 0;
-        const durB = Number(b.duration_min) || 0;
-        return durA - durB;
+        if (Math.abs(tciA - tciB) > 0.15) return tciA - tciB;
+        return (Number(a.duration_min) || 0) - (Number(b.duration_min) || 0);
       });
 
-      // 3. Clean route names and assign FASTEST / ALTERNATIVE badges logically
+      // 4. Assign OSRM-derived real geometry and names
       parsed.routes = sorted.map((r, i) => {
-        const rawName = r.name || `Corridor Option ${i + 1}`;
-        // Clean out any conflicting "Alternative" or "Fastest" prefixes
-        const cleanRoad = rawName
-          .replace(/^(?:Fastest Route\s*(?:via)?|Alternative\s*(?:via)?|Primary Route\s*(?:via)?|Route Option \d+\s*(?:via)?)\s*/i, '')
-          .trim() || (i === 0 ? 'Avinashi Road Express' : 'Bypass Alternate Corridor');
-
         const isRec = i === 0;
+        const coords = isRec ? primaryCoords : altCoords;
+        const roadName = isRec ? primaryName : altName;
+        const name = roadName
+          ? (isRec ? `Fastest Route via ${roadName}` : `Alternative via ${roadName}`)
+          : (isRec ? `Fastest Route via Direct Corridor` : `Alternative via Parallel Road`);
+
         return {
           ...r,
-          name: isRec ? `Fastest Route via ${cleanRoad}` : `Alternative via ${cleanRoad}`,
+          coordinates: coords,
+          name,
           is_recommended: isRec,
-          // Guarantee recommended route has LOW congestion and alternative has higher congestion
           congestion_level: isRec ? 'LOW' : (r.congestion_level === 'LOW' ? 'MEDIUM' : r.congestion_level || 'MEDIUM'),
           tci: isRec ? Math.min(1.22, Number(r.tci) || 1.18) : Math.max(1.42, Number(r.tci) || 1.48),
         };
       });
 
-      // 4. Match against rich preset corridor coordinates
-      const sKey = sLabel.toLowerCase();
-      const dKey = dLabel.toLowerCase();
-      let matchedGeometry = null;
-
-      if ((sKey.includes('gandhipuram') && (dKey.includes('peelamedu') || dKey.includes('airport'))) ||
-          (dKey.includes('gandhipuram') && (sKey.includes('peelamedu') || sKey.includes('airport')))) {
-        matchedGeometry = corridorGeometries['gandhipuram-airport'];
-      } else if (sKey.includes('rspuram') || sKey.includes('rs puram') || dKey.includes('junction')) {
-        matchedGeometry = corridorGeometries['rspuram-junction'];
-      } else if ((sKey.includes('peelamedu') && dKey.includes('ukkadam')) || (sKey.includes('ukkadam') && dKey.includes('peelamedu'))) {
-        matchedGeometry = corridorGeometries['peelamedu-ukkadam'];
-      } else if (sKey.includes('saravanampatti') || dKey.includes('singanallur')) {
-        matchedGeometry = corridorGeometries['saravanampatti-singanallur'];
-      }
-
-      if (matchedGeometry) {
-        parsed.routes[0].coordinates = (parsed.routes[0].coordinates && parsed.routes[0].coordinates.length > 20)
-          ? parsed.routes[0].coordinates
-          : (matchedGeometry.primary?.coords || []);
-
-        if (parsed.routes.length > 1) {
-          parsed.routes[1].coordinates = (parsed.routes[1].coordinates && parsed.routes[1].coordinates.length > 20)
-            ? parsed.routes[1].coordinates
-            : (matchedGeometry.alt?.coords || []);
-        }
-      }
-
-      // 5. If any route still lacks real street coordinates, fetch live from OSRM
-      const needsCoords = parsed.routes.some(r => !r.coordinates || r.coordinates.length < 15);
-      if (needsCoords) {
-        try {
-          const osrmUrl = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${sLng},${sLat};${dLng},${dLat}?overview=full&geometries=geojson&alternatives=true`;
-          const resp = await fetch(osrmUrl);
-          if (resp.ok) {
-            const osrmData = await resp.json();
-            if (osrmData.routes && osrmData.routes.length > 0) {
-              osrmData.routes.forEach((osrmR, idx) => {
-                if (parsed.routes[idx] && (!parsed.routes[idx].coordinates || parsed.routes[idx].coordinates.length < 15)) {
-                  parsed.routes[idx].coordinates = osrmR.geometry.coordinates.map(c => [c[1], c[0]]);
-                }
-              });
-            }
-          }
-        } catch (osrmErr) {
-          console.warn('OSRM live routing fallback note:', osrmErr);
-        }
-      }
-
-      // If still no alt coordinates, use gandhipuram-airport default coordinates
-      if (!parsed.routes[0]?.coordinates || parsed.routes[0].coordinates.length < 10) {
-        parsed.routes[0].coordinates = corridorGeometries['gandhipuram-airport']?.primary?.coords || [];
-      }
-      if (parsed.routes.length > 1 && (!parsed.routes[1]?.coordinates || parsed.routes[1].coordinates.length < 10)) {
-        parsed.routes[1].coordinates = corridorGeometries['gandhipuram-airport']?.alt?.coords || [];
+      // 5. Ensure alternative route slot exists even if backend only returned 1 route
+      if (parsed.routes.length === 1 && altCoords.length > 0) {
+        const base = parsed.routes[0];
+        const altDurationMin = base.duration_min ? Math.round(base.duration_min * 1.3) : 15;
+        const altDistKm = base.distance_km ? parseFloat((base.distance_km * 1.25).toFixed(1)) : 5.0;
+        parsed.routes.push({
+          name: altName ? `Alternative via ${altName}` : 'Alternative via Parallel Road',
+          distance_km: altDistKm,
+          duration_min: altDurationMin,
+          coordinates: altCoords,
+          is_recommended: false,
+          congestion_level: 'MEDIUM',
+          tci: 1.48,
+          predicted_speed_kmh: base.predicted_speed_kmh ? base.predicted_speed_kmh * 0.8 : 28.0,
+          arrival_time: (() => {
+            const now = new Date();
+            const arr = new Date(now.getTime() + altDurationMin * 60000);
+            let h = arr.getHours(), m = arr.getMinutes();
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h < 10 ? '0' + h : h}:${m < 10 ? '0' + m : m} ${ampm}`;
+          })(),
+        });
       }
 
       setData(parsed);
-      setSelectedRouteIdx(0); // Start on the FASTEST (lowest TCI) route
+      setSelectedRouteIdx(0);
     };
 
     processRouteData();
@@ -215,6 +337,19 @@ export default function RouteMapPage() {
             </span>
           )}
         </div>
+
+        {/* Vehicle Mode Badge */}
+        {data.vehicle_type && (
+          <div className="flex items-center justify-between bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900/40 text-[11px]">
+            <span className="text-gray-500 dark:text-slate-400 font-medium">Vehicle:</span>
+            <span className="font-bold text-indigo-700 dark:text-indigo-300 capitalize flex items-center gap-1">
+              {data.vehicle_type === 'two_wheeler' ? '🛵 Two-Wheeler' :
+               data.vehicle_type === 'auto' ? '🛺 Auto-Rickshaw' :
+               data.vehicle_type === 'heavy' ? '🚌 Heavy Vehicle' :
+               data.vehicle_type === 'ev' ? '⚡ Electric Vehicle' : '🚗 Car / Cab'}
+            </span>
+          </div>
+        )}
         
         {/* Active Route Details */}
         <div className="space-y-2 text-xs">

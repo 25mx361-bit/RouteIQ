@@ -251,7 +251,7 @@ export default function LoginPage() {
           {/* FORGOT PASSWORD FLOW */}
           {tab === 'forgot' ? (
             forgotStep === 1 ? (
-              <form onSubmit={handleRequestReset} className="space-y-4" autoComplete="off">
+              <div onKeyDown={(e) => e.key === 'Enter' && handleRequestReset(e)} className="space-y-4" data-form-type="other">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-slate-400 mb-1.5">
                     Account Email Address
@@ -259,10 +259,10 @@ export default function LoginPage() {
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                     <input 
-                      required 
-                      type="email" 
+                      type="text" 
                       name="email" 
-                      autoComplete="off"
+                      autoComplete="nope"
+                      data-1p-ignore="true"
                       value={formData.email} 
                       onChange={handleInputChange} 
                       className="pl-10 w-full p-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition" 
@@ -272,16 +272,17 @@ export default function LoginPage() {
                 </div>
 
                 <button 
-                  type="submit" 
-                  disabled={loading}
+                  type="button" 
+                  onClick={handleRequestReset}
+                  disabled={loading || !formData.email}
                   className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white p-3.5 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 active:scale-98 disabled:opacity-50 text-sm flex items-center justify-center gap-2"
                 >
                   {loading ? 'Generating Code...' : 'Send Reset Code'}
                   <ArrowRight size={16} />
                 </button>
-              </form>
+              </div>
             ) : (
-              <form onSubmit={handleResetPassword} className="space-y-4" autoComplete="off">
+              <div onKeyDown={(e) => e.key === 'Enter' && handleResetPassword(e)} className="space-y-4" data-form-type="other">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-slate-400 mb-1.5">
                     Reset Verification Code
@@ -289,7 +290,6 @@ export default function LoginPage() {
                   <div className="relative">
                     <KeyRound className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                     <input 
-                      required 
                       type="text" 
                       autoComplete="off"
                       value={resetCodeInput} 
@@ -307,9 +307,9 @@ export default function LoginPage() {
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                     <input 
-                      required 
                       type={showPassword ? 'text' : 'password'} 
-                      autoComplete="new-password"
+                      autoComplete="nope"
+                      data-1p-ignore="true"
                       value={newPassword} 
                       onChange={(e) => setNewPassword(e.target.value)} 
                       className="pl-10 pr-10 w-full p-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition" 
@@ -328,9 +328,9 @@ export default function LoginPage() {
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                     <input 
-                      required 
                       type={showPassword ? 'text' : 'password'} 
-                      autoComplete="new-password"
+                      autoComplete="nope"
+                      data-1p-ignore="true"
                       value={confirmNewPassword} 
                       onChange={(e) => setConfirmNewPassword(e.target.value)} 
                       className="pl-10 w-full p-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition" 
@@ -348,18 +348,19 @@ export default function LoginPage() {
                     Back
                   </button>
                   <button 
-                    type="submit" 
-                    disabled={loading}
+                    type="button"
+                    onClick={handleResetPassword}
+                    disabled={loading || !resetCodeInput || !newPassword || !confirmNewPassword}
                     className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white p-3.5 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 active:scale-98 disabled:opacity-50 text-sm flex items-center justify-center gap-2"
                   >
                     {loading ? 'Resetting...' : 'Save New Password & Log In'}
                   </button>
                 </div>
-              </form>
+              </div>
             )
           ) : (
             /* SIGN IN & REGISTER FORMS */
-            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+              <div onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e)} className="space-y-4" data-form-type="other">
               {tab === 'signup' && (
                 <>
                   <div>
@@ -367,7 +368,6 @@ export default function LoginPage() {
                     <div className="relative">
                       <User className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                       <input 
-                        required 
                         type="text" 
                         name="fullName" 
                         autoComplete="off"
@@ -402,10 +402,10 @@ export default function LoginPage() {
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                   <input 
-                    required 
                     type="email" 
                     name="email" 
-                    autoComplete="off"
+                    autoComplete="nope"
+                    data-1p-ignore="true"
                     value={formData.email} 
                     onChange={handleInputChange} 
                     className="pl-10 w-full p-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition" 
@@ -419,10 +419,10 @@ export default function LoginPage() {
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                   <input 
-                    required 
                     type={showPassword ? 'text' : 'password'} 
                     name="password" 
-                    autoComplete="new-password"
+                    autoComplete="nope"
+                    data-1p-ignore="true"
                     value={formData.password} 
                     onChange={handleInputChange} 
                     className="pl-10 pr-10 w-full p-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition" 
@@ -440,10 +440,10 @@ export default function LoginPage() {
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                     <input 
-                      required 
                       type={showPassword ? 'text' : 'password'} 
                       name="confirmPassword" 
-                      autoComplete="new-password"
+                      autoComplete="nope"
+                      data-1p-ignore="true"
                       value={formData.confirmPassword} 
                       onChange={handleInputChange} 
                       className="pl-10 w-full p-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition" 
@@ -475,7 +475,8 @@ export default function LoginPage() {
               )}
               
               <button 
-                type="submit" 
+                type="button" 
+                onClick={handleSubmit}
                 disabled={loading}
                 className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white p-3.5 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 active:scale-98 disabled:opacity-50 text-sm flex items-center justify-center gap-2"
               >
@@ -488,7 +489,7 @@ export default function LoginPage() {
                   </>
                 )}
               </button>
-            </form>
+            </div>
           )}
         </div>
       </div>

@@ -9,11 +9,17 @@ const USER_KEY  = 'routeiq_user';
 export function setSession(token, user) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('authChange'));
+  }
 }
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('authChange'));
+  }
 }
 
 export function getToken() {

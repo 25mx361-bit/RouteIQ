@@ -7,14 +7,14 @@ import pandas as pd
 from loguru import logger
 
 MONITORED_SEGMENTS = [
-    {"segment_id": "seg_110168_769558", "road_id": "Road-Point-(11.017,76.956)", "lat": 11.0168, "lng": 76.9558, "name": "Gandhipuram Hub"},
-    {"segment_id": "seg_110094_769458", "road_id": "Road-Point-(11.009,76.946)", "lat": 11.0094, "lng": 76.9458, "name": "RS Puram"},
-    {"segment_id": "seg_109980_769634", "road_id": "Road-Point-(10.998,76.963)", "lat": 10.9980, "lng": 76.9634, "name": "Coimbatore Junction"},
-    {"segment_id": "seg_110244_770028", "road_id": "Road-Point-(11.024,77.003)", "lat": 11.0244, "lng": 77.0028, "name": "PSG Tech Peelamedu"},
-    {"segment_id": "seg_110298_770434", "road_id": "Road-Point-(11.030,77.043)", "lat": 11.0298, "lng": 77.0434, "name": "Airport Corridor"},
-    {"segment_id": "seg_110805_769959", "road_id": "Road-Point-(11.081,76.996)", "lat": 11.0805, "lng": 76.9959, "name": "Saravanampatti"},
-    {"segment_id": "seg_109995_770267", "road_id": "Road-Point-(10.999,77.027)", "lat": 10.9995, "lng": 77.0267, "name": "Singanallur"},
-    {"segment_id": "seg_109892_769613", "road_id": "Road-Point-(10.989,76.961)", "lat": 10.9892, "lng": 76.9613, "name": "Ukkadam"},
+    {"segment_id": "seg_110168_769558", "road_id": "Road-Point-(11.017,76.956)", "lat": 11.0168, "lng": 76.9558, "name": "Gandhipuram Hub", "source": "Gandhipuram Central", "destination": "Town Hall (Raja St)", "route_label": "Gandhipuram Central ➔ Town Hall (Raja St)"},
+    {"segment_id": "seg_110094_769458", "road_id": "Road-Point-(11.009,76.946)", "lat": 11.0094, "lng": 76.9458, "name": "RS Puram", "source": "RS Puram (DB Road)", "destination": "Saibaba Colony", "route_label": "RS Puram (DB Road) ➔ Saibaba Colony"},
+    {"segment_id": "seg_109980_769634", "road_id": "Road-Point-(10.998,76.963)", "lat": 10.9980, "lng": 76.9634, "name": "Coimbatore Junction", "source": "Coimbatore Railway Junction", "destination": "Collectorate & Court", "route_label": "Coimbatore Railway Junction ➔ Collectorate & Court"},
+    {"segment_id": "seg_110244_770028", "road_id": "Road-Point-(11.024,77.003)", "lat": 11.0244, "lng": 77.0028, "name": "PSG Tech Peelamedu", "source": "PSG Tech Peelamedu", "destination": "Hopes College (Avinashi Rd)", "route_label": "PSG Tech Peelamedu ➔ Hopes College (Avinashi Rd)"},
+    {"segment_id": "seg_110298_770434", "road_id": "Road-Point-(11.030,77.043)", "lat": 11.0298, "lng": 77.0434, "name": "Airport Corridor", "source": "Coimbatore Airport", "destination": "SITRA Junction (NH-544)", "route_label": "Coimbatore Airport ➔ SITRA Junction (NH-544)"},
+    {"segment_id": "seg_110805_769959", "road_id": "Road-Point-(11.081,76.996)", "lat": 11.0805, "lng": 76.9959, "name": "Saravanampatti", "source": "Saravanampatti IT SEZ", "destination": "Ganapathy Bus Stop", "route_label": "Saravanampatti IT SEZ ➔ Ganapathy Bus Stop"},
+    {"segment_id": "seg_109995_770267", "road_id": "Road-Point-(10.999,77.027)", "lat": 10.9995, "lng": 77.0267, "name": "Singanallur", "source": "Singanallur Bus Stand", "destination": "Ramanathapuram (Trichy Rd)", "route_label": "Singanallur Bus Stand ➔ Ramanathapuram (Trichy Rd)"},
+    {"segment_id": "seg_109892_769613", "road_id": "Road-Point-(10.989,76.961)", "lat": 10.9892, "lng": 76.9613, "name": "Ukkadam", "source": "Ukkadam Bus Stand", "destination": "Town Hall (Oppanakara St)", "route_label": "Ukkadam Bus Stand ➔ Town Hall (Oppanakara St)"},
 ]
 
 from ml.patchtst.preprocessing import FEATURE_COLUMNS_ENRICHED
@@ -48,6 +48,9 @@ def generate_8am_prediction(db, target_date: str = None, model_version: str = No
             "lat": seg['lat'],
             "lng": seg['lng'],
             "name": seg.get('name', ''),
+            "source": seg.get('source', ''),
+            "destination": seg.get('destination', ''),
+            "route_label": seg.get('route_label', f"{seg.get('source', '')} ➔ {seg.get('destination', '')}"),
             "prediction_time": "08:00",
             "target_time": "17:00",
             "predicted_speed": pred_dict.get('predicted_speed_kmh'),
@@ -175,6 +178,9 @@ def collect_5pm_actuals(db, target_date: str = None) -> list:
             pct_err_tci = round((abs_err_tci / max(tci, 0.1)) * 100, 2)
             
             update_data = {
+                "source": seg.get("source", ""),
+                "destination": seg.get("destination", ""),
+                "route_label": seg.get("route_label", f"{seg.get('source', '')} ➔ {seg.get('destination', '')}"),
                 "actual_speed": round(avg_speed, 2),
                 "actual_travel_time": round(avg_tt, 1),
                 "actual_tci": tci,
@@ -218,19 +224,28 @@ def compute_aggregate_metrics(db) -> dict:
         "speed_mae": float(speed_mae),
         "speed_rmse": float(speed_rmse),
         "speed_mape": float(speed_mape),
-        "derived_accuracy_score": float(derived_accuracy),
+        "derived_accuracy_score": float(round(derived_accuracy, 2)),
         "tci_mae": float(tci_mae),
         "tci_rmse": float(tci_rmse),
         "tci_mape": float(tci_mape),
         "note": "Derived Accuracy Score = 100 - MAPE. Not a standard ML accuracy metric."
     }
 
-def get_evaluation_table(db, limit: int = 100) -> list:
-    records = list(db.forecast_evaluations.find().sort("created_at", -1).limit(limit))
+def get_evaluation_table(db, limit: int = 500) -> list:
+    seg_lookup = {s['segment_id']: s for s in MONITORED_SEGMENTS}
+    records = list(db.forecast_evaluations.find().sort([("prediction_date", -1), ("segment_id", 1)]).limit(limit))
     for r in records:
         r['_id'] = str(r['_id'])
+        seg = seg_lookup.get(r.get('segment_id'), {})
+        if not r.get('source'):
+            r['source'] = seg.get('source', '')
+        if not r.get('destination'):
+            r['destination'] = seg.get('destination', '')
+        if not r.get('route_label'):
+            r['route_label'] = seg.get('route_label', f"{r.get('source', '')} ➔ {r.get('destination', '')}")
         if 'created_at' in r and isinstance(r['created_at'], datetime.datetime):
             r['created_at'] = r['created_at'].isoformat()
         if 'evaluated_at' in r and isinstance(r['evaluated_at'], datetime.datetime):
             r['evaluated_at'] = r['evaluated_at'].isoformat()
     return records
+

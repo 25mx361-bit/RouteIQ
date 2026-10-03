@@ -25,11 +25,21 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
-  const user = getUser();
+  const [user, setUser] = useState(getUser());
+
+  React.useEffect(() => {
+    const handleAuth = () => setUser(getUser());
+    window.addEventListener('authChange', handleAuth);
+    window.addEventListener('storage', handleAuth);
+    return () => {
+      window.removeEventListener('authChange', handleAuth);
+      window.removeEventListener('storage', handleAuth);
+    };
+  }, []);
 
   const handleLogout = () => {
     clearSession();
-    navigate('/login');
+    navigate('/dashboard');
   };
 
   return (

@@ -280,6 +280,17 @@ export default function PredictionsPage() {
             <MapPin size={15} className="text-indigo-500" />
             <span>Target Forecast for <strong className="text-gray-700 dark:text-slate-300">{targetDate}</strong> at <strong className="text-gray-700 dark:text-slate-300">{targetTime}</strong></span>
           </p>
+          {currentData?.vehicle_type && (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-xs font-bold text-indigo-700 dark:text-indigo-300">
+              <span>Optimized for:</span>
+              <span className="capitalize">
+                {currentData.vehicle_type === 'two_wheeler' ? '🛵 Two-Wheeler (Agile Routing)' :
+                 currentData.vehicle_type === 'auto' ? '🛺 Auto-Rickshaw' :
+                 currentData.vehicle_type === 'heavy' ? '🚌 Heavy Vehicle (Arterials Only)' :
+                 currentData.vehicle_type === 'ev' ? '⚡ Electric Vehicle (Zero Emission)' : '🚗 Car / Cab'}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 shrink-0 flex-wrap">
           <button

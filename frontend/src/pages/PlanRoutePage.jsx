@@ -1,11 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   MapPin, Navigation, Calendar, Clock, Loader2,
-  Sparkles, Compass, Search, X, CheckCircle2
+  Sparkles, Compass, Search, X, CheckCircle2,
+  Car, Bike, Bus, Zap
 } from 'lucide-react';
 import axios from 'axios';
 import MapView from '../components/MapView';
+
+const VEHICLE_OPTIONS = [
+  { id: 'car', label: 'Car', icon: Car },
+  { id: 'two_wheeler', label: '2-Wheeler', icon: Bike },
+  { id: 'auto', label: 'Auto', icon: Car },
+  { id: 'heavy', label: 'Bus / Truck', icon: Bus },
+  { id: 'ev', label: 'EV', icon: Zap },
+];
 
 // ─── Inline debounce ──────────────────────────────────────────────────────────
 function useDebounce(value, delay) {
@@ -55,6 +64,7 @@ function GeoSuggest({ results, onSelect, loading }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function PlanRoutePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const sourceRef = useRef(null);
   const destRef   = useRef(null);
 
@@ -77,7 +87,23 @@ export default function PlanRoutePage() {
     date: new Date().toISOString().split('T')[0],
     time: new Date().toTimeString().slice(0, 5),
   });
+  const [vehicleType, setVehicleType] = useState('car');
   const [error, setError] = useState('');
+
+  // Prefill from navigation state if redirected from Dashboard
+  useEffect(() => {
+    if (location.state?.source) {
+      setSource(location.state.source);
+      setSourceInput(location.state.source.label || '');
+    }
+    if (location.state?.dest) {
+      setDest(location.state.dest);
+      setDestInput(location.state.dest.label || '');
+    }
+    if (location.state?.vehicleType) {
+      setVehicleType(location.state.vehicleType);
+    }
+  }, [location.state]);
 
   const debouncedSource = useDebounce(sourceInput, 420);
   const debouncedDest   = useDebounce(destInput,   420);
@@ -206,8 +232,10 @@ export default function PlanRoutePage() {
         dest_label:   dest.label,
         date:         formMeta.date,
         time:         formMeta.time,
+        vehicle_type: vehicleType,
       });
-      sessionStorage.setItem('routeiq_search_result', JSON.stringify(res.data));
+      const resultWithVehicle = { ...res.data, vehicle_type: vehicleType };
+      sessionStorage.setItem('routeiq_search_result', JSON.stringify(resultWithVehicle));
       navigate('/predictions');
     } catch (err) {
       const msg = err?.response?.data?.error || err?.response?.data?.message || err.message || 'Route search failed.';
@@ -356,6 +384,41 @@ export default function PlanRoutePage() {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* ── Vehicle Type Selector ── */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-slate-400 mb-1.5">
+                Vehicle Type &amp; Mode
+              </label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {VEHICLE_OPTIONS.map((v) => {
+                  const Icon = v.icon;
+                  const isSel = vehicleType === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setVehicleType(v.id)}
+                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all ${
+                        isSel
+                          ? 'bg-indigo-50 dark:bg-indigo-950/80 border-indigo-600 dark:border-indigo-500 text-indigo-700 dark:text-indigo-300 font-bold shadow-sm ring-1 ring-indigo-500/20'
+                          : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-750'
+                      }`}
+                    >
+                      <Icon size={16} className={`mb-1 ${isSel ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-slate-400'}`} />
+                      <span className="text-[10px] leading-tight font-medium truncate w-full">{v.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-[10.5px] text-gray-400 dark:text-slate-500 italic">
+                {vehicleType === 'two_wheeler' && '🛵 Optimized for agile traffic filtering & bypass roads (e.g. Thanneerpanthal Rd).'}
+                {vehicleType === 'car' && '🚗 Standard car routing prioritizing smooth multilane arterials.'}
+                {vehicleType === 'auto' && '🛺 Urban agility with city speed regulation (45 km/h cap).'}
+                {vehicleType === 'heavy' && '🚌 Restricted to wide arterial thoroughfares; avoids narrow residential lanes.'}
+                {vehicleType === 'ev' && '⚡ Eco-efficient routing favoring regenerative braking and zero tailpipe emissions.'}
+              </p>
             </div>
 
             {/* Error */}

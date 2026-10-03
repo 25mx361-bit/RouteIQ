@@ -11,7 +11,7 @@ export default function ProtectedRoute({ children, requireAdmin = false }) {
   const location = useLocation();
 
   if (!isLoggedIn()) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/dashboard" state={{ from: location }} replace />;
   }
 
   if (requireAdmin && !isAdmin()) {

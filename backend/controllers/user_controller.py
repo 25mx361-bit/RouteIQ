@@ -5,37 +5,39 @@ from flask import jsonify, request, g
 from pymongo import DESCENDING
 from backend.database import get_db
 from loguru import logger
+from bson import ObjectId
 from backend.models.favorites import Favorite
+
+def _user_id_query(user_id):
+    if not user_id:
+        return None
+    ids = [str(user_id)]
+    if ObjectId.is_valid(str(user_id)):
+        ids.append(ObjectId(str(user_id)))
+    return {"$in": ids}
 
 def get_user_stats():
     try:
         user_id = getattr(g, "current_user_id", None)
         db = get_db()
         
-        # 1. Total Searches (Route queries)
-        system_routes = db.routes.count_documents({})
-        user_routes = db.routes.count_documents({"user_id": user_id}) if user_id else 0
-        user_searches = db.search_history.count_documents({"user_id": user_id}) if user_id else 0
-        total_searches = (user_routes + user_searches) if (user_routes + user_searches) > 0 else system_routes
+        # Isolate stats strictly to the authenticated user.
+        # For a new user, all personal activity counts must be 0 (never falling back to system-wide seed data).
+        if user_id:
+            uid_q = _user_id_query(user_id)
+            user_routes = db.routes.count_documents({"user_id": uid_q})
+            user_searches = db.search_history.count_documents({"user_id": uid_q})
+            total_searches = user_routes + user_searches
+            total_predictions = db.predictions.count_documents({"user_id": uid_q})
+            total_recommended_routes = db.routes.count_documents({"user_id": uid_q, "is_recommended": True})
+            total_favorites = Favorite.count(db, {"user_id": str(user_id)})
+        else:
+            total_searches = 0
+            total_predictions = 0
+            total_recommended_routes = 0
+            total_favorites = 0
 
-        # 2. Traffic Predictions (PatchTST inferences)
-        eval_inferences = db.forecast_evaluations.count_documents({})
-        pred_inferences = db.predictions.count_documents({})
-        total_inferences = eval_inferences + pred_inferences
-        user_preds = db.predictions.count_documents({"user_id": user_id}) if user_id else 0
-        total_predictions = user_preds if user_preds > 0 else total_inferences
-
-        # 3. Routes Recommended (CatBoost ranked)
-        system_recommended = db.routes.count_documents({"is_recommended": True})
-        user_recommended = db.routes.count_documents({"user_id": user_id, "is_recommended": True}) if user_id else 0
-        total_recommended_routes = user_recommended if user_recommended > 0 else system_recommended
-
-        # 4. Saved Favorites (Quick access)
-        user_favorites = Favorite.count(db, {"user_id": user_id}) if user_id else 0
-        system_favorites = db.favorites.count_documents({})
-        total_favorites = user_favorites if user_favorites > 0 else system_favorites
-
-        # Calculate live congestion breakdown from forecast_evaluations
+        # Calculate live congestion breakdown from forecast_evaluations (city-wide telemetry)
         evals = list(db.forecast_evaluations.find({"evaluated": True}))
         if evals:
             low = sum(1 for e in evals if e.get("actual_tci", 1.0) < 1.25)
@@ -54,12 +56,18 @@ def get_user_stats():
                 {"name": "Heavy Traffic", "value": 15, "count": 6, "color": "#EF4444"},
             ]
         
+        system_routes = db.routes.count_documents({})
+        system_recommended = db.routes.count_documents({"is_recommended": True})
+        eval_inferences = db.forecast_evaluations.count_documents({})
+        pred_inferences = db.predictions.count_documents({})
+        total_inferences = eval_inferences + pred_inferences
+
         return jsonify({
             "total_searches": total_searches,
             "total_predictions": total_predictions,
             "total_recommended_routes": total_recommended_routes,
             "total_favorites": total_favorites,
-            "user_searches": user_routes + user_searches,
+            "user_searches": total_searches,
             "system_searches": system_routes,
             "patchtst_inferences": total_inferences,
             "catboost_recommended": system_recommended,
@@ -77,10 +85,12 @@ def get_user_history():
         skip = (page - 1) * limit
         
         db = get_db()
-        if user_id and db.routes.count_documents({"user_id": user_id}) > 0:
-            query = {"user_id": user_id}
-        else:
-            query = {}
+        # If user is not authenticated or has no routes, return empty list (never leak other users' routes)
+        if not user_id:
+            return jsonify({"history": [], "total": 0, "page": page}), 200
+
+        uid_q = _user_id_query(user_id)
+        query = {"user_id": uid_q}
         
         total = db.routes.count_documents(query)
         cursor = db.routes.find(query).sort("created_at", DESCENDING).skip(skip).limit(limit)

@@ -44,6 +44,7 @@ def search_routes():
     dest_label = data.get("dest_label", "")
     travel_date = data.get("date", "")
     travel_time = data.get("time", "")
+    vehicle_type = str(data.get("vehicle_type", "car")).lower().strip()
     user_id = getattr(g, "current_user_id", None)
 
     try:
@@ -57,6 +58,7 @@ def search_routes():
             travel_date=travel_date,
             travel_time=travel_time,
             user_id=user_id,
+            vehicle_type=vehicle_type,
         )
         return jsonify(result), 200
 

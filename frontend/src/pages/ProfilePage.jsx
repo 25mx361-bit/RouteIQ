@@ -81,7 +81,7 @@ export default function ProfilePage() {
 
   const handleLogout = () => {
     clearSession();
-    navigate('/login');
+    navigate('/dashboard');
   };
 
   return (

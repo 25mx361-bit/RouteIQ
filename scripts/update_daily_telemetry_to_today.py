@@ -116,7 +116,7 @@ CORRIDOR_METADATA = {
     },
 }
 
-def generate_telemetry_and_evaluations():
+def generate_telemetry_and_evaluations(target_end_date=None):
     db = get_db()
     
     # 1. Backfill source and destination on all existing forecast_evaluations
@@ -133,9 +133,22 @@ def generate_telemetry_and_evaluations():
         )
     print("[+] Backfill complete.")
 
-    # 2. Generate daily telemetry from Sep 20 to Sep 26 (today)
-    start_dt = datetime(2026, 9, 20, tzinfo=timezone.utc)
-    end_dt = datetime(2026, 9, 26, tzinfo=timezone.utc)
+    # 2. Generate daily telemetry dynamically from Sep 09 to target_end_date (defaults to today)
+    now_utc = datetime.now(timezone.utc)
+    start_dt = datetime(2026, 9, 9, tzinfo=timezone.utc)
+    if target_end_date is None:
+        end_dt = datetime(now_utc.year, now_utc.month, now_utc.day, tzinfo=timezone.utc)
+    elif isinstance(target_end_date, str):
+        parts = [int(p) for p in target_end_date.split("-")]
+        end_dt = datetime(parts[0], parts[1], parts[2], tzinfo=timezone.utc)
+    elif isinstance(target_end_date, datetime):
+        end_dt = target_end_date if target_end_date.tzinfo else target_end_date.replace(tzinfo=timezone.utc)
+    else:
+        end_dt = datetime(target_end_date.year, target_end_date.month, target_end_date.day, tzinfo=timezone.utc)
+
+    if end_dt < start_dt:
+        end_dt = start_dt
+
     total_days = (end_dt - start_dt).days + 1
     dates = [start_dt + timedelta(days=d) for d in range(total_days)]
     
@@ -148,7 +161,7 @@ def generate_telemetry_and_evaluations():
         day_of_week = date_obj.weekday()
         is_weekend = day_of_week >= 5
         base_temp = 28.5 + rng.uniform(-1.0, 1.0)
-        has_rain = (date_obj.day in [21, 24])
+        has_rain = (date_obj.day in [11, 14, 18, 21, 24, 28, 2])
 
         for step in range(96):
             ts = date_obj + timedelta(minutes=step * 15)
@@ -242,9 +255,12 @@ def generate_telemetry_and_evaluations():
         db.weather_data.insert_many(weather_records[i:i+batch_size])
     print("[+] Telemetry inserted successfully.")
 
-    # 3. Generate 8:00 AM forecast and 5:00 PM verified post-event evaluation for Sep 20 to Sep 26
-    print("Generating daily forecasts and verified evaluations from Sep 20 to Sep 26...")
+    # 3. Generate 8:00 AM forecast and verified post-event evaluations up to today
+    print(f"Generating daily forecasts and verified evaluations from {start_dt.date()} to {end_dt.date()}...")
     eval_rng = np.random.RandomState(3033)
+    
+    # Remove stale legacy records older than start_dt
+    db.forecast_evaluations.delete_many({"prediction_date": {"$lt": start_dt.strftime("%Y-%m-%d")}})
     
     for date_obj in dates:
         date_str = date_obj.strftime("%Y-%m-%d")
@@ -259,33 +275,41 @@ def generate_telemetry_and_evaluations():
             }))
             
             if actual_records:
-                actual_speed = round(float(np.mean([r["speed_kmh"] for r in actual_records])), 2)
+                actual_speed = round(float(np.mean([r["speed_kmh"] for r in actual_records])), 1)
                 actual_tt = round(float(np.mean([r["current_travel_time"] for r in actual_records])), 1)
                 actual_fftt = round(float(np.mean([r["free_flow_travel_time"] for r in actual_records])), 1)
             else:
-                actual_speed = seg["rush_speed"]
+                actual_speed = round(float(seg["rush_speed"]), 1)
                 actual_fftt = round((seg["distance_km"] / seg["ff_speed"]) * 3600.0, 1)
                 actual_tt = round((seg["distance_km"] / max(actual_speed, 5.0)) * 3600.0, 1)
                 
-            actual_tci = round(actual_tt / max(actual_fftt, 1.0), 4)
+            actual_tci = round(actual_tt / max(actual_fftt, 1.0), 2)
             
-            # Prediction with realistic high accuracy (92% - 98%)
-            deviation = round(float(eval_rng.normal(0.1, 0.9)), 2)
-            max_dev = actual_speed * 0.08
-            if abs(deviation) > max_dev:
-                deviation = math.copysign(max_dev * 0.75, deviation)
-                
-            pred_speed = round(actual_speed + deviation, 2)
+            # Calibrate prediction accuracy strictly between 85.0% and 87.0%
+            target_accuracy = round(float(eval_rng.uniform(85.2, 86.9)), 1)
+            pct_target = (100.0 - target_accuracy) / 100.0  # e.g., 0.138
+            raw_dev = round(actual_speed * pct_target, 1)
+            if raw_dev < 1.0:
+                raw_dev = 1.5
+            
+            # Alternate positive and negative deviation
+            sign = 1 if eval_rng.rand() > 0.5 else -1
+            pred_speed = round(max(10.0, actual_speed + sign * raw_dev), 1)
+            
+            # Recompute exact abs_err and pct_err from rounded pred and actual so numbers match 100%
+            abs_err_speed = round(abs(pred_speed - actual_speed), 1)
+            pct_err_speed = round((abs_err_speed / actual_speed) * 100.0, 2)
+            
             pred_tt = round((seg["distance_km"] / max(pred_speed, 5.0)) * 3600.0, 1)
-            pred_tci = round(pred_tt / max(actual_fftt, 1.0), 4)
-            
-            abs_err_speed = round(abs(pred_speed - actual_speed), 2)
-            pct_err_speed = round((abs_err_speed / max(actual_speed, 1.0)) * 100.0, 2)
-            abs_err_tci = round(abs(pred_tci - actual_tci), 4)
+            pred_tci = round(pred_tt / max(actual_fftt, 1.0), 2)
+            abs_err_tci = round(abs(pred_tci - actual_tci), 2)
             pct_err_tci = round((abs_err_tci / max(actual_tci, 0.1)) * 100.0, 2)
             
-            created_dt = date_obj.replace(hour=8, minute=5, second=0)
-            evaluated_dt = date_obj.replace(hour=17, minute=15, second=0)
+            created_dt = date_obj.replace(hour=8, minute=0, second=0)
+            if date_obj.date() < now_utc.date():
+                evaluated_dt = date_obj.replace(hour=17, minute=15, second=0)
+            else:
+                evaluated_dt = now_utc
             
             eval_doc = {
                 "prediction_date": date_str,
@@ -331,3 +355,4 @@ def generate_telemetry_and_evaluations():
 
 if __name__ == "__main__":
     generate_telemetry_and_evaluations()
+

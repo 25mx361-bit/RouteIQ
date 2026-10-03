@@ -4,18 +4,37 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Sun, Moon, Radio, Activity, Clock, LogIn, UserPlus, Shield } from 'lucide-react';
-import { getUser, isLoggedIn, isAdmin } from '../../services/auth';
+import { Sun, Moon, Radio, Activity, Clock, LogIn, UserPlus, Shield, LogOut } from 'lucide-react';
+import { getUser, isLoggedIn, isAdmin, clearSession } from '../../services/auth';
 import { useTheme } from '../../contexts/ThemeContext';
 import NotificationPanel from '../NotificationPanel';
 
 export default function AppHeader({ title }) {
   const navigate = useNavigate();
-  const user = getUser();
-  const loggedIn = isLoggedIn();
-  const adminUser = isAdmin();
+  const [user, setUser] = useState(getUser());
+  const [loggedIn, setLoggedIn] = useState(isLoggedIn());
+  const adminUser = user?.role === 'admin';
   const { theme, toggleTheme, isDark } = useTheme();
   const [time, setTime] = useState(new Date());
+
+  // Keep auth state reactive to logins and logouts
+  useEffect(() => {
+    const handleAuth = () => {
+      setUser(getUser());
+      setLoggedIn(isLoggedIn());
+    };
+    window.addEventListener('authChange', handleAuth);
+    window.addEventListener('storage', handleAuth);
+    return () => {
+      window.removeEventListener('authChange', handleAuth);
+      window.removeEventListener('storage', handleAuth);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    clearSession();
+    navigate('/dashboard');
+  };
 
   // Real-time clock
   useEffect(() => {
@@ -75,6 +94,13 @@ export default function AppHeader({ title }) {
                 <p className="text-[10px] text-gray-400 dark:text-slate-500 leading-tight capitalize">{user?.role || 'User'}</p>
               </div>
             </Link>
+            <button
+              onClick={handleLogout}
+              title="Log Out (Return to Dashboard)"
+              className="p-2 rounded-xl text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition ml-0.5"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         ) : (
           <div className="flex items-center gap-2 ml-1 pl-2 border-l border-gray-200 dark:border-slate-800">

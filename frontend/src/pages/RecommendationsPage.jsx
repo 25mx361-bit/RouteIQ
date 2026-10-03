@@ -140,15 +140,16 @@ export default function RecommendationsPage() {
       p.name?.toLowerCase().includes('peelamedu')
     ) || PRESET_CORRIDORS[0];
 
-    const primaryCoords = (item.coordinates && item.coordinates.length > 5)
+    const primaryCoords = (item.coordinates && item.coordinates.length > 0)
       ? item.coordinates
-      : (presetMatch?.routes?.[0]?.coordinates || corridorGeometries['gandhipuram-airport']?.primary?.coords || []);
+      : [];
 
-    const altCoords = presetMatch?.routes?.[1]?.coordinates || corridorGeometries['gandhipuram-airport']?.alt?.coords || [];
+    const altCoords = [];
 
     const inspected = {
       source: { lat: sLat, lng: sLng, label: sLabel },
       destination: { lat: dLat, lng: dLng, label: dLabel },
+      vehicle_type: item.vehicle_type || 'car',
       travel_meta: {
         date: item.travel_date || new Date().toISOString().split('T')[0],
         time: item.travel_time || '17:00'
@@ -162,28 +163,14 @@ export default function RecommendationsPage() {
           congestion_level: 'LOW',
           is_recommended: true,
           catboost_score: item.catboost_score || 0.94,
-          predicted_speed_kmh: 41.5,
+          predicted_speed_kmh: item.predicted_speed_kmh || 36.0,
           free_flow_speed_kmh: 52.0,
           coordinates: primaryCoords,
           green_score: 92,
           co2_kg: Number((dist * 0.17).toFixed(1)),
           method: 'PatchTST_v2 + CatBoost'
-        },
-        {
-          name: `Alternative via Sathy Road & Bypass Link`,
-          distance_km: Number((dist * 1.25).toFixed(1)),
-          duration_min: Number((dur * 1.35).toFixed(0)),
-          tci: 1.48,
-          congestion_level: 'MEDIUM',
-          is_recommended: false,
-          catboost_score: Math.max(0.68, Number(((item.catboost_score || 0.94) - 0.14).toFixed(2))),
-          predicted_speed_kmh: 32.0,
-          free_flow_speed_kmh: 46.0,
-          coordinates: altCoords,
-          green_score: 74,
-          co2_kg: Number((dist * 0.22).toFixed(1)),
-          method: 'PatchTST_v2 + CatBoost'
         }
+        // Alternative route coordinates & name will be fetched live by RouteMapPage via OSRM
       ]
     };
 
@@ -273,8 +260,21 @@ export default function RecommendationsPage() {
     return s.includes(searchTerm.toLowerCase());
   });
 
-  const totalPages = Math.ceil(filteredRecs.length / pageSize) || 1;
-  const pagedRecs = filteredRecs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const uniqueRecs = [];
+  const seenKeys = new Set();
+  filteredRecs.forEach(r => {
+    const s = r.source_label || r.source?.label || 'Source';
+    const d = r.destination_label || r.dest_label || r.destination?.label || 'Destination';
+    const routeName = r.name || '';
+    const key = `${s}->${d}->${routeName}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueRecs.push(r);
+    }
+  });
+
+  const totalPages = Math.ceil(uniqueRecs.length / pageSize) || 1;
+  const pagedRecs = uniqueRecs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6 bg-gray-50 dark:bg-slate-950 min-h-full transition-colors duration-200">
@@ -380,11 +380,7 @@ export default function RecommendationsPage() {
                   >
                     <div>
                       {/* Top Badges */}
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 flex items-center gap-1">
-                          <Check size={11} className="stroke-[3]" />
-                          CatBoost Rank #1 • Score {score}%
-                        </span>
+                      <div className="flex items-center justify-end gap-2 mb-3">
                         <CongestionBadge level={item.congestion_level || 'LOW'} />
                       </div>
 

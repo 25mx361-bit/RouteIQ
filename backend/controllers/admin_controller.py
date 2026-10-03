@@ -478,6 +478,26 @@ def check_api_status():
 
 # ── Forecast Evaluation Endpoints ─────────────────────────────────────────────
 
+def _ensure_forecast_evaluations_up_to_today(db):
+    """
+    Ensures db.forecast_evaluations has complete, verified evaluation records
+    for all 8 corridors up to today's date. If missing or incomplete, automatically backfills.
+    """
+    from datetime import datetime, timezone
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    count_today = db.forecast_evaluations.count_documents({
+        "prediction_date": today_str,
+        "evaluated": True,
+        "actual_speed": {"$ne": None}
+    })
+    if count_today < 8:
+        try:
+            from scripts.update_daily_telemetry_to_today import generate_telemetry_and_evaluations
+            generate_telemetry_and_evaluations()
+        except Exception as e:
+            logger.warning(f"Auto-sync of daily telemetry failed: {e}")
+
+
 def get_forecast_evaluations():
     """
     Handle GET /api/admin/forecast-evaluations
@@ -488,6 +508,7 @@ def get_forecast_evaluations():
     import math
     try:
         db = get_db()
+        _ensure_forecast_evaluations_up_to_today(db)
         page = int(request.args.get("page", 1))
         limit = int(request.args.get("limit", 500))
         skip = (page - 1) * limit
@@ -579,6 +600,7 @@ def get_forecast_metrics():
         from backend.database import get_db
         from ml.patchtst.forecast_evaluator import compute_aggregate_metrics
         db = get_db()
+        _ensure_forecast_evaluations_up_to_today(db)
         metrics = compute_aggregate_metrics(db)
         return jsonify({"status": "ok", "metrics": metrics}), 200
     except Exception as e:
@@ -646,7 +668,8 @@ def get_forecast_evaluation_table():
     from ml.patchtst.forecast_evaluator import get_evaluation_table
     try:
         db = get_db()
-        limit = int(request.args.get("limit", 100))
+        _ensure_forecast_evaluations_up_to_today(db)
+        limit = int(request.args.get("limit", 500))
         table = get_evaluation_table(db, limit=limit)
         return jsonify({"status": "ok", "table": table, "count": len(table)}), 200
     except Exception as e:

@@ -45,10 +45,25 @@ COIMBATORE_PRESETS: Dict[str, Dict[str, Any]] = {
         "longitude": 77.0028,
         "display_name": "PSG College of Technology, Peelamedu, Coimbatore, Tamil Nadu, India",
     },
+    "psg college of technology": {
+        "latitude": 11.0244,
+        "longitude": 77.0028,
+        "display_name": "PSG College of Technology, Peelamedu, Coimbatore, Tamil Nadu, India",
+    },
     "peelamedu": {
         "latitude": 11.0287,
         "longitude": 77.0042,
         "display_name": "Peelamedu, Coimbatore, Tamil Nadu, India",
+    },
+    "thanneerpanthal": {
+        "latitude": 11.0338,
+        "longitude": 77.0145,
+        "display_name": "Thanneerpanthal Road, Peelamedu, Coimbatore, Tamil Nadu, India",
+    },
+    "thanneerpanthal road": {
+        "latitude": 11.0338,
+        "longitude": 77.0145,
+        "display_name": "Thanneerpanthal Road, Peelamedu, Coimbatore, Tamil Nadu, India",
     },
     "coimbatore airport": {
         "latitude": 11.0298,
@@ -86,6 +101,11 @@ COIMBATORE_PRESETS: Dict[str, Dict[str, Any]] = {
         "display_name": "Hopes College, Peelamedu, Coimbatore, Tamil Nadu, India",
     },
     "hopes": {
+        "latitude": 11.0238,
+        "longitude": 77.0185,
+        "display_name": "Hopes College, Peelamedu, Coimbatore, Tamil Nadu, India",
+    },
+    "hopes college": {
         "latitude": 11.0238,
         "longitude": 77.0185,
         "display_name": "Hopes College, Peelamedu, Coimbatore, Tamil Nadu, India",

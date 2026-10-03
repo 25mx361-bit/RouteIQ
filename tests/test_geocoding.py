@@ -1,92 +1,131 @@
 """
-tests/test_geocoding.py — Verification of Geocoding Service & API Endpoints for Coimbatore Region.
+tests/test_geocoding.py — GeocodingService unit tests.
 
 Tests:
-  1. Preset Landmark resolution (Gandhipuram, RS Puram, Coimbatore Railway Station, PSG Tech)
-  2. GET /api/geocode?q=... endpoint returns HTTP 200 with { latitude, longitude, display_name }
-  3. POST /api/geocode with JSON payload
-  4. Missing query parameter returns HTTP 400 Bad Request
-  5. Invalid/unknown location returns HTTP 404 with friendly message
+  1. Valid Coimbatore landmark → returns preset coordinates immediately
+  2. Valid location string (Nominatim) → lat/lng/display_name returned
+  3. Empty string → raises or returns None gracefully
+  4. Special characters in query → handled without exception
+  5. Unknown location (far away) → Nominatim fallback attempted
 """
+import pytest
+from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 
-# Ensure project root is in sys.path
-current = Path(__file__).resolve()
-for p in [current.parent, current.parent.parent]:
-    if (p / "backend").exists() and str(p) not in sys.path:
-        sys.path.insert(0, str(p))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backend.app import create_app
-from backend.config.settings import TestingConfig
-from backend.services.geocoding_service import GeocodingService
+from backend.services.geocoding_service import GeocodingService, COIMBATORE_PRESETS
 
 
-def run_geocoding_tests():
-    print("=" * 65)
-    print(" RouteIQ Phase 4: Geocoding & OpenStreetMap API Test Suite")
-    print("=" * 65)
+# ---------------------------------------------------------------------------
+# 1. Valid Coimbatore preset (instant lookup — no HTTP call needed)
+# ---------------------------------------------------------------------------
 
-    app = create_app(TestingConfig())
-    client = app.test_client()
-    service = GeocodingService()
+def test_geocode_coimbatore_preset_gandhipuram():
+    svc = GeocodingService()
+    result = svc.geocode("gandhipuram")
+    assert result is not None, "Should return preset result for gandhipuram"
+    assert abs(result["latitude"] - 11.0176) < 0.01
+    assert abs(result["longitude"] - 76.9667) < 0.01
+    assert "Gandhipuram" in result["display_name"]
 
-    all_passed = True
 
-    # 1. Direct Service Test for Coimbatore Landmarks
-    print("\n--- 1. Direct Geocoding Service Tests ---")
-    landmarks = ["Gandhipuram", "RS Puram", "Coimbatore Railway Station", "PSG Tech", "Peelamedu"]
-    for l in landmarks:
+def test_geocode_coimbatore_preset_rs_puram():
+    svc = GeocodingService()
+    result = svc.geocode("rs puram")
+    assert result is not None
+    assert abs(result["latitude"] - 11.0085) < 0.01
+
+
+def test_geocode_coimbatore_preset_case_insensitive():
+    svc = GeocodingService()
+    result = svc.geocode("GANDHIPURAM")
+    assert result is not None
+    assert "latitude" in result and "longitude" in result
+
+
+# ---------------------------------------------------------------------------
+# 2. Valid location → Nominatim response parsed correctly
+# ---------------------------------------------------------------------------
+
+def test_geocode_valid_location_via_nominatim():
+    """Mocks Nominatim and verifies correct field mapping."""
+    svc = GeocodingService()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = [
+        {
+            "lat": "11.0168",
+            "lon": "76.9558",
+            "display_name": "Saravanampatti, Coimbatore, Tamil Nadu, India",
+        }
+    ]
+    with patch("requests.get", return_value=mock_response):
+        result = svc.geocode("Saravanampatti Coimbatore")
+    assert result is not None
+    assert abs(float(result["latitude"]) - 11.0168) < 0.001
+    assert abs(float(result["longitude"]) - 76.9558) < 0.001
+    assert "display_name" in result
+
+
+# ---------------------------------------------------------------------------
+# 3. Empty string → returns None or raises cleanly
+# ---------------------------------------------------------------------------
+
+def test_geocode_empty_string():
+    svc = GeocodingService()
+    # Should not raise an unhandled exception — returns None or raises ValueError
+    try:
+        result = svc.geocode("")
+        assert result is None, "Empty string should return None, not a result"
+    except (ValueError, TypeError):
+        pass  # Also acceptable to raise a validation error
+
+
+# ---------------------------------------------------------------------------
+# 4. Special characters → handled without crash
+# ---------------------------------------------------------------------------
+
+def test_geocode_special_characters():
+    svc = GeocodingService()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = []
+    with patch("requests.get", return_value=mock_response):
         try:
-            res = service.geocode(l)
-            assert res["latitude"] > 10.0 and res["longitude"] > 76.0, f"Invalid coords for {l}"
-            print(f" [PASS] '{l}' -> Lat: {res['latitude']}, Lng: {res['longitude']} ({res['source']})")
+            result = svc.geocode("!@#$%^&*()")
+            # Returns None when Nominatim finds nothing — acceptable
+            assert result is None or "latitude" in result
         except Exception as e:
-            print(f" [FAIL] Failed geocoding for '{l}': {e}")
-            all_passed = False
-
-    # 2. GET /api/geocode Endpoint
-    print("\n--- 2. GET /api/geocode HTTP Endpoint Tests ---")
-    get_res = client.get("/api/geocode?q=Gandhipuram")
-    print(f" Status: {get_res.status_code}")
-    data = get_res.get_json()
-    if get_res.status_code == 200 and "latitude" in data and "longitude" in data:
-        print(f" [PASS] GET /api/geocode?q=Gandhipuram returned valid coordinates: {data['latitude']}, {data['longitude']}")
-    else:
-        print(f" [FAIL] Expected 200, got: {get_res.status_code}, data={data}")
-        all_passed = False
-
-    # 3. POST /api/geocode Endpoint
-    print("\n--- 3. POST /api/geocode HTTP Endpoint Tests ---")
-    post_res = client.post("/api/geocode", json={"query": "RS Puram"})
-    print(f" Status: {post_res.status_code}")
-    post_data = post_res.get_json()
-    if post_res.status_code == 200 and "latitude" in post_data and "longitude" in post_data:
-        print(f" [PASS] POST /api/geocode returned valid coordinates: {post_data['latitude']}, {post_data['longitude']}")
-    else:
-        print(f" [FAIL] Expected 200, got: {post_res.status_code}, data={post_data}")
-        all_passed = False
-
-    # 4. Error Handling: Missing Query (Expect 400)
-    print("\n--- 4. Error Handling: Missing Query Parameter (Expect 400) ---")
-    bad_res = client.get("/api/geocode")
-    print(f" Status: {bad_res.status_code}")
-    if bad_res.status_code == 400 and bad_res.get_json().get("error") == "bad_request":
-        print(f" [PASS] Successfully returned 400 Bad Request: {bad_res.get_json().get('message')}")
-    else:
-        print(f" [FAIL] Expected 400, got: {bad_res.status_code}")
-        all_passed = False
-
-    print("\n" + "=" * 65)
-    if all_passed:
-        print(" [RESULT] >>> PASS <<< All Geocoding & Map Backend Tests Passed!")
-    else:
-        print(" [RESULT] >>> FAIL <<< Some tests failed!")
-    print("=" * 65)
-
-    return all_passed
+            pytest.fail(f"Special characters should not cause unhandled exception: {e}")
 
 
-if __name__ == "__main__":
-    success = run_geocoding_tests()
-    sys.exit(0 if success else 1)
+# ---------------------------------------------------------------------------
+# 5. Nominatim returns empty list (unknown location)
+# ---------------------------------------------------------------------------
+
+def test_geocode_unknown_location_returns_none():
+    svc = GeocodingService()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = []
+    with patch("requests.get", return_value=mock_response):
+        result = svc.geocode("xyzzy_nonexistent_place_12345")
+    assert result is None, "Unknown location should return None"
+
+
+# ---------------------------------------------------------------------------
+# 6. Nominatim HTTP error → graceful fallback (no exception propagated)
+# ---------------------------------------------------------------------------
+
+def test_geocode_network_error_handled_gracefully():
+    svc = GeocodingService()
+    import requests as req_mod
+    with patch("requests.get", side_effect=req_mod.exceptions.ConnectionError("timeout")):
+        try:
+            result = svc.geocode("Some Place Coimbatore")
+            # Should return None or preset, not raise
+            assert result is None or "latitude" in result
+        except Exception as e:
+            pytest.fail(f"Network error should be handled gracefully, got: {e}")

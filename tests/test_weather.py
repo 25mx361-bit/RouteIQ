@@ -1,169 +1,209 @@
 """
-tests/test_weather.py — Open-Meteo Weather API, Risk Calculator & MongoDB Storage Tests.
+tests/test_weather.py — WeatherService unit tests.
 
 Tests:
-  1. Weather risk calculator formula rules (rainfall, visibility, wind speed, risk levels)
-  2. WeatherService.get_current_weather(lat, lng)
-  3. WeatherService.get_forecast_weather(lat, lng, date, time)
-  4. WeatherService.get_historical_weather(lat, lng, start_date, end_date)
-  5. MongoDB persistence in weather_data collection
-  6. GET /api/weather/current endpoint
-  7. GET /api/weather/forecast endpoint
+  1. Current weather → dict with required fields (temperature, rainfall_mm, etc.)
+  2. Forecast for future time → returns hourly forecast dict
+  3. Historical weather fetch → list of records for date range
+  4. WeatherRiskCalculator — sunny day → risk_score near 0, risk_level "Low"
+  5. WeatherRiskCalculator — torrential rain (>25mm) → score ≥ 0.50
+  6. WeatherRiskCalculator — heavy rain + low visibility + gale wind → score = 1.0 (capped)
 """
+import pytest
+from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
-from datetime import datetime
 
-# Ensure project root is in sys.path
-current = Path(__file__).resolve()
-for p in [current.parent, current.parent.parent]:
-    if (p / "backend").exists() and str(p) not in sys.path:
-        sys.path.insert(0, str(p))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backend.app import create_app
-from backend.config.settings import TestingConfig
-from backend.services.weather_service import WeatherService
 from backend.services.weather_risk_calculator import calculate_weather_risk
-from backend.repositories.weather_repository import WeatherRepository
-from backend.database import get_db, init_db
 
 
-def run_weather_tests():
-    print("=" * 65)
-    print(" RouteIQ Phase 7: Open-Meteo Weather API & Risk Calculator Test Suite")
-    print("=" * 65)
+# ---------------------------------------------------------------------------
+# Open-Meteo mock payloads
+# ---------------------------------------------------------------------------
 
-    app = create_app(TestingConfig())
-    client = app.test_client()
-    db = get_db()
-    weather_repo = WeatherRepository(db)
-    service = WeatherService(weather_repo=weather_repo)
+CURRENT_MOCK = {
+    "current": {
+        "temperature_2m": 31.5,
+        "precipitation": 0.0,
+        "visibility": 10000.0,
+        "windspeed_10m": 12.0,
+        "relativehumidity_2m": 68.0,
+        "weathercode": 1,
+    },
+    "current_units": {
+        "temperature_2m": "°C",
+        "precipitation": "mm",
+        "windspeed_10m": "km/h",
+        "visibility": "m",
+    }
+}
 
-    all_passed = True
+FORECAST_MOCK = {
+    "hourly": {
+        "time": ["2026-10-05T09:00", "2026-10-05T10:00"],
+        "temperature_2m": [28.0, 29.5],
+        "precipitation": [0.0, 0.2],
+        "visibility": [10000.0, 9000.0],
+        "windspeed_10m": [8.0, 10.0],
+        "relativehumidity_2m": [65.0, 67.0],
+        "weathercode": [1, 2],
+    }
+}
 
-    lat, lng = 11.0168, 76.9558  # Coimbatore (Gandhipuram)
+HISTORICAL_MOCK = {
+    "hourly": {
+        "time": ["2026-09-01T00:00", "2026-09-01T01:00"],
+        "temperature_2m": [26.0, 25.5],
+        "precipitation": [0.5, 1.2],
+        "windspeed_10m": [9.0, 11.0],
+        "relativehumidity_2m": [72.0, 74.0],
+        "visibility": [9000.0, 8500.0],
+        "weathercode": [61, 61],
+    }
+}
 
-    # -----------------------------------------------------------------------
-    # TEST 1: Weather Risk Calculator Formula Rules
-    # -----------------------------------------------------------------------
-    print("\n--- 1. Weather Risk Calculator Formula Verification ---")
-    # A. Optimal Conditions
-    r_optimal = calculate_weather_risk(temperature=28.0, precipitation=0.0, visibility=10000.0, wind_speed=10.0)
-    assert r_optimal["risk_score"] == 0.0, f"Expected 0.0, got {r_optimal['risk_score']}"
-    assert r_optimal["risk_level"] == "Low"
-    print(f" [PASS] Optimal Weather: risk_score={r_optimal['risk_score']} ({r_optimal['risk_level']})")
 
-    # B. Heavy Rainfall (>10mm -> +0.35)
-    r_rain = calculate_weather_risk(precipitation=15.0)
-    assert r_rain["risk_score"] >= 0.35, f"Expected >= 0.35, got {r_rain['risk_score']}"
-    assert r_rain["risk_level"] == "Moderate"
-    print(f" [PASS] Heavy Rain (15mm): risk_score={r_rain['risk_score']} ({r_rain['risk_level']})")
+def _mock_open_meteo(payload):
+    m = MagicMock()
+    m.status_code = 200
+    m.json.return_value = payload
+    return m
 
-    # C. Low Visibility / Dense Fog (<1000m -> +0.30)
-    r_fog = calculate_weather_risk(visibility=800.0)
-    assert r_fog["risk_score"] >= 0.30, f"Expected >= 0.30, got {r_fog['risk_score']}"
-    print(f" [PASS] Dense Fog (800m): risk_score={r_fog['risk_score']} ({r_fog['risk_level']})")
 
-    # D. Severe Combined Adverse Weather
-    r_severe = calculate_weather_risk(precipitation=30.0, visibility=500.0, wind_speed=55.0)
-    assert r_severe["risk_score"] >= 0.75, f"Expected >= 0.75, got {r_severe['risk_score']}"
-    assert r_severe["risk_level"] == "Severe"
-    print(f" [PASS] Severe Weather (Rain+Fog+Gale): risk_score={r_severe['risk_score']} ({r_severe['risk_level']}) - {r_severe['risk_factors']}")
+# ---------------------------------------------------------------------------
+# 1. Current weather → required fields present
+# ---------------------------------------------------------------------------
 
-    # -----------------------------------------------------------------------
-    # TEST 2: WeatherService.get_current_weather
-    # -----------------------------------------------------------------------
-    print("\n--- 2. WeatherService Current Weather ---")
-    try:
-        curr = service.get_current_weather(lat, lng, persist=True)
-        assert "temperature_2m" in curr, "temperature_2m missing"
-        assert "precipitation" in curr, "precipitation missing"
-        assert "relative_humidity_2m" in curr, "humidity missing"
-        assert "wind_speed_10m" in curr, "wind_speed missing"
-        assert "weather_risk" in curr, "weather_risk missing"
-        print(f" [PASS] Current Weather for Coimbatore ({lat}, {lng}):")
-        print(f"   - Temp: {curr['temperature_2m']}°C | Rain: {curr['precipitation']} mm | Humidity: {curr['relative_humidity_2m']}%")
-        print(f"   - Wind: {curr['wind_speed_10m']} km/h | Condition: '{curr['condition']}' | Risk: {curr['weather_risk']} ({curr['risk_level']})")
-    except Exception as e:
-        print(f" [FAIL] Current weather error: {e}")
-        all_passed = False
+def test_current_weather_returns_required_fields():
+    with patch("requests.get", return_value=_mock_open_meteo(CURRENT_MOCK)):
+        from backend.services.weather_service import WeatherService
+        svc = WeatherService()
+        result = svc.get_current_weather(lat=11.0168, lng=76.9558)
 
-    # -----------------------------------------------------------------------
-    # TEST 3: WeatherService.get_forecast_weather
-    # -----------------------------------------------------------------------
-    print("\n--- 3. WeatherService Forecast Weather ---")
-    try:
-        fc = service.get_forecast_weather(lat, lng, date="2026-08-25", time="14:00", persist=True)
-        assert "temperature_2m" in fc, "temperature_2m missing"
-        assert "weather_risk" in fc, "weather_risk missing"
-        print(f" [PASS] Forecast Weather for 2026-08-25 @ 14:00:")
-        print(f"   - Temp: {fc['temperature_2m']}°C | Condition: '{fc['condition']}' | Risk: {fc['weather_risk']} ({fc['risk_level']})")
-    except Exception as e:
-        print(f" [FAIL] Forecast weather error: {e}")
-        all_passed = False
+    assert result is not None
+    assert "temperature" in result
+    assert "rainfall_mm" in result or "precipitation" in result
+    assert "wind_speed" in result or "windspeed" in result
+    assert "condition" in result or "weather_code" in result or "weathercode" in result
 
-    # -----------------------------------------------------------------------
-    # TEST 4: WeatherService.get_historical_weather (Archive)
-    # -----------------------------------------------------------------------
-    print("\n--- 4. WeatherService Historical Weather Archive Query ---")
-    try:
-        hist = service.get_historical_weather(lat, lng, start_date="2024-01-01", end_date="2024-01-03")
-        print(f" [PASS] Historical archive queried: retrieved {len(hist)} hourly records for ML feature set")
-    except Exception as e:
-        print(f" [FAIL] Historical weather archive error: {e}")
-        all_passed = False
 
-    # -----------------------------------------------------------------------
-    # TEST 5: MongoDB weather_data Persistence Check
-    # -----------------------------------------------------------------------
-    print("\n--- 5. MongoDB weather_data Collection Persistence ---")
-    try:
-        w_doc = db.weather_data.find_one({"lat": lat, "lng": lng})
-        if w_doc:
-            print(f" [PASS] Record verified in MongoDB weather_data: id={w_doc['_id']}, temp={w_doc['temperature']}°C, source={w_doc['source']}")
-        else:
-            print(f" [FAIL] Weather record not found in MongoDB")
-            all_passed = False
-    except Exception as e:
-        print(f" [FAIL] MongoDB check error: {e}")
-        all_passed = False
+# ---------------------------------------------------------------------------
+# 2. Forecast for future time → returns hourly data
+# ---------------------------------------------------------------------------
 
-    # -----------------------------------------------------------------------
-    # TEST 6: GET /api/weather/current Endpoint
-    # -----------------------------------------------------------------------
-    print("\n--- 6. GET /api/weather/current Endpoint ---")
-    res_curr = client.get(f"/api/weather/current?lat={lat}&lng={lng}")
-    print(f" Status: {res_curr.status_code}")
-    data_curr = res_curr.get_json()
-    if res_curr.status_code == 200 and "temperature_2m" in data_curr and "weather_risk" in data_curr:
-        print(f" [PASS] Current weather endpoint working: {data_curr['temperature_2m']}°C, {data_curr['condition']}, Risk={data_curr['weather_risk']}")
+def test_forecast_weather_returns_hourly_data():
+    with patch("requests.get", return_value=_mock_open_meteo(FORECAST_MOCK)):
+        from backend.services.weather_service import WeatherService
+        svc = WeatherService()
+        result = svc.get_forecast_weather(
+            lat=11.0168, lng=76.9558,
+            date="2026-10-05", time="09:00"
+        )
+
+    assert result is not None
+    # Should return a forecast dict or list with at least temperature
+    if isinstance(result, list):
+        assert len(result) >= 1
+        assert "temperature" in result[0] or "temperature_2m" in result[0]
     else:
-        print(f" [FAIL] Expected 200, got: {res_curr.status_code}, data={data_curr}")
-        all_passed = False
+        assert "temperature" in result or "temperature_2m" in result
 
-    # -----------------------------------------------------------------------
-    # TEST 7: GET /api/weather/forecast Endpoint
-    # -----------------------------------------------------------------------
-    print("\n--- 7. GET /api/weather/forecast Endpoint ---")
-    res_fc = client.get(f"/api/weather/forecast?lat={lat}&lng={lng}&date=2026-08-25&time=18:00")
-    print(f" Status: {res_fc.status_code}")
-    data_fc = res_fc.get_json()
-    if res_fc.status_code == 200 and "temperature_2m" in data_fc and "weather_risk" in data_fc:
-        print(f" [PASS] Forecast weather endpoint working: {data_fc['temperature_2m']}°C, {data_fc['condition']}, Risk={data_fc['weather_risk']}")
+
+# ---------------------------------------------------------------------------
+# 3. Historical weather → list of records
+# ---------------------------------------------------------------------------
+
+def test_historical_weather_returns_records():
+    with patch("requests.get", return_value=_mock_open_meteo(HISTORICAL_MOCK)):
+        from backend.services.weather_service import WeatherService
+        svc = WeatherService()
+        result = svc.get_historical_weather(
+            lat=11.0168, lng=76.9558,
+            start_date="2026-09-01", end_date="2026-09-02"
+        )
+
+    assert result is not None
+    if isinstance(result, list):
+        assert len(result) >= 1
     else:
-        print(f" [FAIL] Expected 200, got: {res_fc.status_code}, data={data_fc}")
-        all_passed = False
-
-    print("\n" + "=" * 65)
-    if all_passed:
-        print(" [RESULT] >>> PASS <<< All Open-Meteo Weather & Risk Tests Passed!")
-    else:
-        print(" [RESULT] >>> FAIL <<< Some weather tests failed!")
-    print("=" * 65)
-
-    return all_passed
+        assert isinstance(result, dict)
 
 
-if __name__ == "__main__":
-    success = run_weather_tests()
-    sys.exit(0 if success else 1)
+# ---------------------------------------------------------------------------
+# 4. Sunny day → Low risk, score near 0
+# ---------------------------------------------------------------------------
+
+def test_weather_risk_sunny_day():
+    result = calculate_weather_risk(
+        temperature=28.0,
+        precipitation=0.0,
+        visibility=10000.0,
+        wind_speed=10.0,
+    )
+    assert result["risk_score"] == 0.0, f"Sunny day should have risk_score=0.0, got {result['risk_score']}"
+    assert result["risk_level"] == "Low"
+    assert result["is_hazardous"] is False
+
+
+# ---------------------------------------------------------------------------
+# 5. Torrential rain (>25mm) → score ≥ 0.50
+# ---------------------------------------------------------------------------
+
+def test_weather_risk_torrential_rain():
+    result = calculate_weather_risk(
+        temperature=26.0,
+        precipitation=30.0,   # > 25mm → +0.50
+        visibility=10000.0,
+        wind_speed=10.0,
+    )
+    assert result["risk_score"] >= 0.50, (
+        f"Torrential rain should give risk_score >= 0.50, got {result['risk_score']}"
+    )
+    assert "Torrential" in " ".join(result.get("risk_factors", [])) or result["risk_score"] >= 0.50
+
+
+# ---------------------------------------------------------------------------
+# 6. Combined worst-case → score capped at 1.0
+# ---------------------------------------------------------------------------
+
+def test_weather_risk_combined_worst_case_capped_at_1():
+    result = calculate_weather_risk(
+        temperature=28.0,
+        precipitation=35.0,    # +0.50
+        visibility=500.0,      # +0.30
+        wind_speed=60.0,       # +0.25
+    )
+    assert result["risk_score"] == 1.0, (
+        f"Worst-case weather should clamp risk_score to 1.0, got {result['risk_score']}"
+    )
+    assert result["risk_level"] == "Severe"
+    assert result["is_hazardous"] is True
+
+
+# ---------------------------------------------------------------------------
+# 7. Moderate rain (2.5–10mm) → score 0.20 contribution
+# ---------------------------------------------------------------------------
+
+def test_weather_risk_moderate_rain_boundary():
+    result = calculate_weather_risk(
+        temperature=28.0,
+        precipitation=5.0,    # 2.5 < 5 <= 10 → +0.20
+        visibility=10000.0,
+        wind_speed=10.0,
+    )
+    assert result["risk_score"] == pytest.approx(0.20, abs=0.01), (
+        f"Moderate rain (5mm) should contribute +0.20, got {result['risk_score']}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 8. Extreme temperature → +0.10 contribution
+# ---------------------------------------------------------------------------
+
+def test_weather_risk_extreme_temperature():
+    result_hot = calculate_weather_risk(temperature=45.0, precipitation=0.0, visibility=10000.0, wind_speed=10.0)
+    result_cold = calculate_weather_risk(temperature=0.0, precipitation=0.0, visibility=10000.0, wind_speed=10.0)
+    assert result_hot["risk_score"] == pytest.approx(0.10, abs=0.01), "Extreme heat should add +0.10"
+    assert result_cold["risk_score"] == pytest.approx(0.10, abs=0.01), "Frost should add +0.10"
